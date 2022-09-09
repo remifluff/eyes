@@ -1,0 +1,18 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"istream": "cpp",
+			"__bit_reference": "cpp",
+			"bitset": "cpp",
+			"chrono": "cpp",
+			"unordered_map": "cpp",
+			"algorithm": "cpp",
+			"variant": "cpp"
+		}
+	}
+}
