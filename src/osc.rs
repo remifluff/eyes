@@ -41,3 +41,10 @@ let max_packets = 10;
 while model.received_packets.len() > max_packets {
     model.received_packets.remove(0);
 }
+let receiver = osc::receiver(OSC_PORT).unwrap();
+
+// A vec for collecting packets and their source address.
+let received_packets = vec![];
+unsafe {
+    PORT.open_port();
+}
