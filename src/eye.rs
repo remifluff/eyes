@@ -1,5 +1,5 @@
 use crate::{Connection, Fbo, Model, PORT};
-use nannou::prelude::*;
+use nannou::{ease, prelude::*};
 use wgpu::TextueSnapshot;
 
 pub struct Eye {
@@ -35,6 +35,18 @@ impl Eye {
     }
 
     pub fn update_openess(&mut self, percent: f32) {
+        percent.blink_ease(1.0);
         self.open_percent = percent;
+    }
+}
+trait EaseExt {
+    fn blink_ease(&self, d: f32) -> f32 {
+        0.0
+    }
+}
+impl EaseExt for f32 {
+    fn blink_ease(&self, d: f32) -> f32 {
+        let t = *self % (d * 2.0);
+        ease::sine::ease_in_out(t, 0.0, 1.0, d)
     }
 }

@@ -5,6 +5,7 @@ use std::time::Instant;
 use std::{os::unix::prelude::DirEntryExt, string, time::Duration};
 
 use nannou::draw;
+use nannou::draw::primitive::rect;
 use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
 use nokhwa::{query, Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use osc::Message;
@@ -35,6 +36,7 @@ use nannou_osc as osc;
 
 const OSC_PORT: u16 = 8338;
 const MODEL_PATH: &str = "model/seeta_fd_frontal_v1.0.bin";
+const CAMERA_WH: (f32, f32) = (320.0, 240.0);
 
 fn main() {
     nannou::app(model).update(update).simple_window(view).run();
@@ -68,7 +70,7 @@ fn model(app: &App) -> Model {
         Screen::new(app, Point2::new(12.0, 12.0)),
         Screen::new(app, Point2::new(8.0, 8.0)),
     ];
-    let mut vision = Vision::new(app, MODEL_PATH, Point2::new(320.0, 240.0));
+    let mut vision = Vision::new(app, MODEL_PATH, CAMERA_WH);
     vision.initialize();
     vision.update_camera(app);
 
@@ -86,7 +88,7 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     let t = app.time;
 
     model.eye.set_center(app.mouse.position());
-    model.eye.update_openess(t.blink_ease(1.0));
+    model.eye.update_openess(t);
     if model.write_timer.check(t) {}
 
     if model.vision_timer.check(t) {
@@ -119,8 +121,8 @@ fn view(app: &App, model: &Model, frame: Frame) {
         screen.draw_to_frame(app);
     }
 
-    model.vision.draw_camera(&draw);
-    model.vision.draw_face(&draw);
+    model.vision.draw_camera(&draw, win);
+    model.vision.draw_face(&draw, win);
 
     draw.to_frame(app, &frame).unwrap();
 }
@@ -145,17 +147,5 @@ impl Timer {
         } else {
             false
         }
-    }
-}
-
-trait EaseExt {
-    fn blink_ease(&self, d: f32) -> f32 {
-        0.0
-    }
-}
-impl EaseExt for f32 {
-    fn blink_ease(&self, d: f32) -> f32 {
-        let t = *self % (d * 2.0);
-        ease::sine::ease_in_out(t, 0.0, 1.0, d)
     }
 }
