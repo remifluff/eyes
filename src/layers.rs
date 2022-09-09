@@ -28,3 +28,53 @@
    \\ surface
     let draw = app.draw();
     draw.texture(&model.texture_for_layer);
+
+
+
+
+
+    // fn draw_into_texture(a: &App, m: &Model, d: &Draw) {
+//     d.reset();
+//     d.background().color(BLACK);
+//     let [w, h] = (m.screen.dim.to_array());
+//     let r = geom::Rect::from_w_h(w as f32, h as f32);
+
+//     let elapsed_frames = a.main_window().elapsed_frames();
+//     let t = elapsed_frames as f32 / 60.0;
+
+//     let n_points = 10;
+//     let weight = 8.0;
+//     let hz = 6.0;
+//     let vertices = (0..n_points)
+//         .map(|i| {
+//             let x = map_range(i, 0, n_points - 1, r.left(), r.right());
+//             let fract = i as f32 / n_points as f32;
+//             let amp = (t + fract * hz * TAU).sin();
+//             let y = map_range(amp, -1.0, 1.0, r.bottom() * 0.75, r.top() * 0.75);
+//             pt2(x, y)
+//         })
+//         .enumerate()
+//         .map(|(i, p)| {
+//             let fract = i as f32 / n_points as f32;
+//             let r = (t + fract) % 1.0;
+//             let g = (t + 1.0 - fract) % 1.0;
+//             let b = (t + 0.5 + fract) % 1.0;
+//             let rgba = srgba(r, g, b, 1.0);
+//             (p, rgba)
+//         });
+
+//     d.polyline()
+//         .weight(weight)
+//         .join_round()
+//         .points_colored(vertices);
+
+//     // Draw frame number and size in bottom left.
+//     let string = format!("Frame {} - {:?}", elapsed_frames, [w, h]);
+//     let text = text(&string)
+//         .font_size(48)
+//         .left_justify()
+//         .align_bottom()
+//         .build(r.pad(r.h() * 0.05));
+
+//     d.path().fill().color(WHITE).events(text.path_events());
+// }
