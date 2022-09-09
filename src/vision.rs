@@ -43,7 +43,7 @@ impl Vision {
 
         detector.set_min_face_size(40);
         detector.set_score_thresh(2.0);
-        detector.set_pyramid_scale_factor(0.8);
+        detector.set_pyramid_scale_factor(0.1);
         detector.set_slide_window_step(4, 4);
 
         Vision {
@@ -78,15 +78,14 @@ impl Vision {
         };
     }
 
-    pub fn draw_camera(&self, app: &App) {
-        app.draw().texture(&self.texture).w_h(640.0, 480.0);
+    pub fn draw_camera(&self, draw: &Draw) {
+        draw.texture(&self.texture).w_h(640.0, 480.0);
     }
 
-    pub fn draw_face(&self, app: &App) {
-        for face in &self.faces {
+    pub fn draw_face(&self, draw: &Draw) {
+        if let Some(face) = &self.faces.first() {
             let bbox = face.bbox();
-            app.draw()
-                .rect()
+            draw.rect()
                 .w_h(
                     f32::from_u32(bbox.width()).unwrap(),
                     f32::from_u32(bbox.height()).unwrap(),
@@ -96,6 +95,7 @@ impl Vision {
                     f32::from_i32(bbox.y()).unwrap(),
                 );
         }
+        for face in &self.faces {}
     }
 
     // let mut rgb = model.image.unwrap().to_rgb8();
@@ -105,5 +105,5 @@ fn callback(image: nannou::image::ImageBuffer<Rgb<u8>, Vec<u8>>) {
     unsafe {
         CAMERA_READY = true;
     }
-    println!("{}x{} {}", image.width(), image.height(), image.len());
+    // println!("{}x{} {}", image.width(), image.height(), image.len());
 }

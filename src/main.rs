@@ -6,7 +6,7 @@ use std::{os::unix::prelude::DirEntryExt, string, time::Duration};
 
 use nannou::draw;
 use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
-use nokhwa::{Camera, CameraFormat, FrameFormat, ThreadedCamera};
+use nokhwa::{query, Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use osc::Message;
 use wgpu::Texture;
 
@@ -36,9 +36,8 @@ use nannou_osc as osc;
 const OSC_PORT: u16 = 8338;
 const MODEL_PATH: &str = "model/seeta_fd_frontal_v1.0.bin";
 
-fn main() -> Result<(), ()> {
+fn main() {
     nannou::app(model).update(update).simple_window(view).run();
-    Ok(())
 }
 
 pub struct Model {
@@ -63,11 +62,13 @@ fn model(app: &App) -> Model {
     let write_timer = Timer::start_new(app.time, 0.0001);
     let vision_timer = Timer::start_new(app.time, 0.1);
 
+    query().iter().for_each(|cam| println!("{:?}", cam));
+
     let screen = [
         Screen::new(app, Point2::new(12.0, 12.0)),
         Screen::new(app, Point2::new(8.0, 8.0)),
     ];
-    let mut vision = Vision::new(app, MODEL_PATH, Point2::new(640.0, 480.0));
+    let mut vision = Vision::new(app, MODEL_PATH, Point2::new(320.0, 240.0));
     vision.initialize();
     vision.update_camera(app);
 
@@ -117,8 +118,9 @@ fn view(app: &App, model: &Model, frame: Frame) {
     for screen in &model.screen {
         screen.draw_to_frame(app);
     }
-    model.vision.draw_camera(app);
-    model.vision.draw_face(app);
+
+    model.vision.draw_camera(&draw);
+    model.vision.draw_face(&draw);
 
     draw.to_frame(app, &frame).unwrap();
 }
