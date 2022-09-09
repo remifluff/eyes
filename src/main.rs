@@ -38,6 +38,7 @@ pub struct Model {
 
 fn model(app: &App) -> Model {
     // Bind an `osc::Receiver` to a port.
+    // added mroe comments
     let receiver = osc::receiver(OSC_PORT).unwrap();
 
     // A vec for collecting packets and their source address.
