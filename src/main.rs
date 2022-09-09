@@ -60,14 +60,15 @@ fn model(app: &App) -> Model {
     }
 
     let write_timer = Timer::start_new(app.time, 0.0001);
-    let vision_timer = Timer::start_new(app.time, 2.0);
+    let vision_timer = Timer::start_new(app.time, 0.1);
 
     let screen = [
         Screen::new(app, Point2::new(12.0, 12.0)),
         Screen::new(app, Point2::new(8.0, 8.0)),
     ];
-    let vision = Vision::new(MODEL_PATH, Point2::new(640.0, 480.0));
+    let mut vision = Vision::new(app, MODEL_PATH, Point2::new(640.0, 480.0));
     vision.initialize();
+    vision.update(app);
 
     Model {
         eye,
@@ -79,12 +80,6 @@ fn model(app: &App) -> Model {
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
-    // match rgb.save(OUTPUT_FILE) {
-    //     Ok(_) => println!("Saved result to {}", OUTPUT_FILE),
-    //     Err(message) => println!("Failed to save result to a file. Reason: {}", message),
-    // }
-    // println!("{}, {}", frame.width(), frame.height());
-
     let t = app.time;
 
     model.eye.set_center(app.mouse.position());
@@ -120,6 +115,8 @@ fn view(app: &App, model: &Model, frame: Frame) {
     for screen in &model.screen {
         screen.draw_to_frame(app);
     }
+    model.vision.draw_camera(app);
+    model.vision.draw_face(app);
 
     draw.to_frame(app, &frame).unwrap();
 }
