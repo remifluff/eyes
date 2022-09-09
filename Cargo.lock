@@ -650,6 +650,7 @@ name = "eyes"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "image",
  "nannou",
  "nannou_osc",
  "nannou_wgpu",
@@ -1505,6 +1506,7 @@ dependencies = [
  "flume",
  "image",
  "mozjpeg",
+ "parking_lot",
  "paste",
  "thiserror",
  "v4l",

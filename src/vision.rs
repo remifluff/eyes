@@ -1,14 +1,15 @@
-use crate::{Connection, Fbo, Model, PORT};
+use crate::{Connection, Fbo, Model, CAMERA_READY, PORT};
+use image::{ImageBuffer, Rgb};
 use nannou::image::{DynamicImage, GrayImage};
 use nannou::prelude::*;
-use nokhwa::{Camera, CameraFormat, FrameFormat};
+use nokhwa::{Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use rustface::{Detector, FaceInfo, ImageData};
 use wgpu::{TextueSnapshot, Texture};
 
 pub struct Vision {
     image: DynamicImage,
     faces: Vec<FaceInfo>,
-    camera: Camera,
+    camera: ThreadedCamera,
     texture: Texture,
     detector: Box<dyn Detector>,
 
@@ -18,14 +19,9 @@ pub struct Vision {
 
 impl Vision {
     pub fn new(app: &App, model_path: &str, wh: Point2) -> Vision {
-        let mut detector = rustface::create_detector(model_path).unwrap();
+        // let mut threaded = ThreadedCamera::new(0, None).unwrap();
 
-        detector.set_min_face_size(40);
-        detector.set_score_thresh(2.0);
-        detector.set_pyramid_scale_factor(0.8);
-        detector.set_slide_window_step(4, 4);
-
-        let mut camera = Camera::new(
+        let mut camera = ThreadedCamera::new(
             0,
             Some(CameraFormat::new_from(
                 u32::from_f32(wh.x).unwrap(),
@@ -36,10 +32,19 @@ impl Vision {
         )
         .unwrap();
 
-        camera.open_stream().unwrap();
+        camera.open_stream(callback).unwrap();
 
-        let image = DynamicImage::ImageRgb8(camera.frame().unwrap()).thumbnail(100, 80);
+        let frame = camera.poll_frame().unwrap();
+
+        let image = DynamicImage::new_rgb16(100, 80);
         let texture = Texture::from_image::<&App>(app, &image);
+
+        let mut detector = rustface::create_detector(model_path).unwrap();
+
+        detector.set_min_face_size(40);
+        detector.set_score_thresh(2.0);
+        detector.set_pyramid_scale_factor(0.8);
+        detector.set_slide_window_step(4, 4);
 
         Vision {
             image,
@@ -53,11 +58,7 @@ impl Vision {
         }
     }
     pub fn initialize(&self) {}
-
-    pub fn update(&mut self, app: &App) {
-        self.image = DynamicImage::ImageRgb8(self.camera.frame().unwrap()).thumbnail(200, 140);
-        self.texture = Texture::from_image::<&App>(app, &self.image);
-
+    pub fn update_faces(&mut self, app: &App) {
         self.faces = {
             let detector: &mut dyn Detector = &mut *self.detector;
             let gray = self.image.clone().to_luma8();
@@ -65,6 +66,15 @@ impl Vision {
             let mut image = ImageData::new(&gray, width, height);
             let faces = detector.detect(&mut image);
             faces
+        };
+    }
+    pub fn update_camera(&mut self, app: &App) {
+        if let Ok(img) = self.camera.poll_frame() {
+            self.image = DynamicImage::ImageRgb8(img).thumbnail(200, 140);
+            self.texture = Texture::from_image::<&App>(app, &self.image);
+            unsafe {
+                CAMERA_READY = false;
+            }
         };
     }
 
@@ -89,4 +99,11 @@ impl Vision {
     }
 
     // let mut rgb = model.image.unwrap().to_rgb8();
+}
+
+fn callback(image: nannou::image::ImageBuffer<Rgb<u8>, Vec<u8>>) {
+    unsafe {
+        CAMERA_READY = true;
+    }
+    println!("{}x{} {}", image.width(), image.height(), image.len());
 }

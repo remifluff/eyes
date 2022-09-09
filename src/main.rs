@@ -6,7 +6,7 @@ use std::{os::unix::prelude::DirEntryExt, string, time::Duration};
 
 use nannou::draw;
 use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
-use nokhwa::Camera;
+use nokhwa::{Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use osc::Message;
 use wgpu::Texture;
 
@@ -28,6 +28,7 @@ pub use serial2::SerialPort;
 
 const PORT_NAME: &str = "/dev/cu.usbmodem105641701";
 static mut PORT: Connection = Connection::new(PORT_NAME, false);
+static mut CAMERA_READY: bool = false;
 
 use nannou::image::DynamicImage::ImageRgb8;
 use nannou_osc as osc;
@@ -68,7 +69,7 @@ fn model(app: &App) -> Model {
     ];
     let mut vision = Vision::new(app, MODEL_PATH, Point2::new(640.0, 480.0));
     vision.initialize();
-    vision.update(app);
+    vision.update_camera(app);
 
     Model {
         eye,
@@ -80,6 +81,7 @@ fn model(app: &App) -> Model {
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
+    model.vision.update_camera(app);
     let t = app.time;
 
     model.eye.set_center(app.mouse.position());
@@ -87,7 +89,7 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     if model.write_timer.check(t) {}
 
     if model.vision_timer.check(t) {
-        model.vision.update(app)
+        model.vision.update_faces(app)
     }
 
     for screen in &model.screen {

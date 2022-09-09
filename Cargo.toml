@@ -12,4 +12,9 @@ futures = "0.3"
 nannou_osc = "0.18.0"
 rustface = "0.1.7"
 
-nokhwa = {version = "0.9.4", features = ["input-v4l"]}
+nokhwa = {version = "0.9.4", features = ["input-v4l", "output-threaded"]}
+
+[dependencies.image]
+version = "0.23.14"
+default-features = false
+
