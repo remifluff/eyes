@@ -10,3 +10,6 @@ nannou_wgpu = "0.18.0"
 serial2 = "0.1.6"
 futures = "0.3"
 nannou_osc = "0.18.0"
+rustface = "0.1.7"
+
+nokhwa = {version = "0.9.4", features = ["input-v4l"]}
