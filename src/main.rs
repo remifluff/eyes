@@ -9,6 +9,7 @@ use nannou::draw::primitive::rect;
 use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
 use nokhwa::{query, Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use osc::Message;
+use rustface::FaceInfo;
 use wgpu::Texture;
 
 pub mod connection;
@@ -29,6 +30,8 @@ pub use serial2::SerialPort;
 
 const PORT_NAME: &str = "/dev/cu.usbmodem105641701";
 static mut PORT: Connection = Connection::new(PORT_NAME, false);
+static mut FACES: Vec<FaceInfo> = Vec::new();
+
 static mut CAMERA_READY: bool = false;
 
 use nannou::image::DynamicImage::ImageRgb8;
@@ -72,7 +75,9 @@ fn model(app: &App) -> Model {
     ];
     let mut vision = Vision::new(app, MODEL_PATH, CAMERA_WH);
     vision.initialize();
-    vision.update_camera(app);
+    let win = app.window_rect();
+
+    vision.update_camera(app, win);
 
     Model {
         eye,
@@ -84,7 +89,9 @@ fn model(app: &App) -> Model {
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
-    model.vision.update_camera(app);
+    let win = app.window_rect();
+
+    model.vision.update_camera(app, win);
     let t = app.time;
 
     model.eye.set_center(app.mouse.position());
@@ -92,7 +99,9 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     if model.write_timer.check(t) {}
 
     if model.vision_timer.check(t) {
-        model.vision.update_faces(app)
+        unsafe {
+            model.vision.update_faces(app);
+        }
     }
 
     for screen in &model.screen {
@@ -121,8 +130,9 @@ fn view(app: &App, model: &Model, frame: Frame) {
         screen.draw_to_frame(app);
     }
 
-    model.vision.draw_camera(&draw, win);
-    model.vision.draw_face(&draw, win);
+    let offset = app.mouse.position();
+    model.vision.draw_camera(&draw, offset);
+    model.vision.draw_face(&draw, win, offset);
 
     draw.to_frame(app, &frame).unwrap();
 }
