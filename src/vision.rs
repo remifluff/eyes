@@ -28,7 +28,8 @@ pub struct Vision {
 
 impl Vision {
     pub fn new(app: &App, model_path: &str, (w, h): (f32, f32)) -> Vision {
-        let image = image::open("model/faces.jpg").unwrap();
+        let image =
+            image::open("model/group-portrait-happy-young-casual-people-28761154.jpg").unwrap();
 
         let mut wh = Point2::new(w, h);
 
@@ -103,7 +104,7 @@ impl Vision {
     pub fn update_camera(&mut self, app: &App, screen: Rect) {
         self.scale_factor = screen.wh() / self.wh;
         self.scale_factor = Point2::from([self.scale_factor.max_element(); 2]);
-
+        // self.scale_factor = vec2(1, 0.2);
         // if let Ok(face) = self.faces.lock() {
         //     iter()
         // }
@@ -134,11 +135,11 @@ impl Vision {
             let offset_pos = self.wh;
 
             for face in faces.iter() {
-                let mut xy = face.xy();
+                let face_center = face.xy() + (face.wh() * vec2(0.5, 0.5));
 
-                let mirror = face.xy() * vec2(-1.0, 1.0);
+                let mirror = face_center * vec2(-1.0, 1.0);
 
-                let center = self.wh * vec2(0.5, -0.25);
+                let center = self.wh * vec2(0.5, -0.5);
 
                 let xy = (mirror + center) * self.scale_factor;
 
