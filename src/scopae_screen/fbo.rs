@@ -11,7 +11,7 @@ pub struct Fbo {
     renderer: draw::Renderer,
     texture_size: [u32; 2],
     texture_capturer: wgpu::TextureCapturer,
-    
+
     image: Option<ImageBuffer<image::Rgba<u8>, Vec<u8>>>,
     pixel_count: u32,
 }
