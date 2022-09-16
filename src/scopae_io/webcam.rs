@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -11,7 +12,8 @@ use nannou::lyon::geom::euclid::point2;
 use nannou::lyon::math::Point;
 use nannou::prelude::*;
 
-use nokhwa::{Camera, CameraFormat, FrameFormat, ThreadedCamera};
+use anyhow::{anyhow, Result};
+use nokhwa::{Camera, CameraFormat, FrameFormat, Resolution, ThreadedCamera};
 use rustface::{Detector, FaceInfo, ImageData};
 use std::sync::mpsc::{self, channel, Receiver, Sender};
 use wgpu::{TextueSnapshot, Texture};
@@ -26,71 +28,60 @@ enum FrameStatus {
 }
 
 pub struct Webcam {
-    camera: Option<ThreadedCamera>,
-    pub image: DynamicImage,
-    texture: Texture,
+    camera: Result<ThreadedCamera>,
+    pub image: Option<DynamicImage>,
+    texture: Option<Texture>,
     wh: Point2,
+
+    resolution: Resolution,
 
     frame_status: Arc<Mutex<FrameStatus>>,
 }
 
 impl Webcam {
-    pub fn new(app: &App, webcam_dim: (u32, u32)) -> Webcam {
-        let image = image::open("model/faces.jpg").unwrap();
-        let (w, h) = webcam_dim;
+    pub fn new(app: &App, webcam_number: usize, resolution: Resolution) -> Webcam {
+        // let image = image::open("model/faces.jpg").unwrap();
 
-        let mut wh = Point2::new(w as f32, h as f32);
+        let mut wh = Point2::new(resolution.height() as f32, resolution.width() as f32);
 
-        let camera = if let Ok(mut c) = ThreadedCamera::new(
-            0,
-            Some(CameraFormat::new_from(w, h, FrameFormat::MJPEG, 30)), // format
-        ) {
-            c.open_stream(every_frame_callback);
-            Some(c)
-        } else {
-            let dim = image.dimensions();
-            wh = vec2(dim.0 as f32, dim.1 as f32);
-            None
-        };
+        let format = CameraFormat::new(resolution, FrameFormat::MJPEG, 30);
 
-        let texture = Texture::from_image::<&App>(app, &image);
-
-        let mut detector_raw = rustface::create_detector(MODEL_PATH).unwrap();
-
-        detector_raw.set_min_face_size(40);
-        detector_raw.set_score_thresh(2.0);
-        detector_raw.set_pyramid_scale_factor(0.1);
-        detector_raw.set_slide_window_step(4, 4);
+        let camera = ThreadedCamera::new(webcam_number, Some(format)).map_err(|e| anyhow!("sop"));
 
         Webcam {
-            image,
-            texture,
-            camera,
+            image: None,
+            texture: None,
+            camera: camera,
             wh,
+            resolution,
             frame_status: Arc::new(Mutex::new(FrameStatus::Unloaded)),
         }
     }
+    pub fn initialize(&mut self, app: &App) -> Option<()> {
+        if let Ok(cam) = &mut self.camera {
+            cam.open_stream(every_frame_callback);
+        }
 
-    pub fn initialize(&self) {}
+        Some(())
+    }
 
-    pub fn update_camera(&mut self, app: &App, screen: Rect) {
-        if let Some(cam) = &mut self.camera {
+    pub fn capture_camera_frame(&mut self, app: &App) -> Option<()> {
+        if let Ok(cam) = &mut self.camera {
             if let Ok(img) = &mut cam.poll_frame() {
-                let (thumb_w, thumb_h) = (self.wh.x as u32, self.wh.y as u32);
-                self.image = DynamicImage::ImageRgb8(img.clone()).thumbnail(thumb_w, thumb_h);
-                self.texture = Texture::from_image::<&App>(app, &self.image);
+                let imgg = DynamicImage::ImageRgb8(img.clone());
+
+                self.texture = Some(Texture::from_image::<&App>(app, &imgg));
+
+                self.image = Some(imgg);
             };
         }
+        Some(())
     }
 
-    pub fn draw_camera(&self, draw: &Draw, offset: Point2) {
-        draw.texture(&self.texture)
-            .wh(self.wh * self.scale_factor * vec2(-1.0, 1.0))
-            .xy(vec2(0.0, 0.0));
+    pub fn draw_camera(&self, draw: &Draw, rect: Rect) {
+        if let Some(tex) = &self.texture {
+            draw.texture(tex).wh(rect.wh()).xy(rect.xy());
+        }
     }
 }
-fn callback(image: nannou::image::ImageBuffer<Rgb<u8>, Vec<u8>>) {
-    unsafe {
-        CAMERA_READY = true;
-    }
-}
+fn every_frame_callback(image: nannou::image::ImageBuffer<Rgb<u8>, Vec<u8>>) {}

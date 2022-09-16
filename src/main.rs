@@ -8,7 +8,7 @@ use nannou::draw::primitive::rect;
 use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
 
 mod scopae_io;
-use scopae_io::{SerialOutput, Vision};
+use scopae_io::{ScopaeIo, SerialOutput};
 
 mod ui;
 use ui::UI;
@@ -40,10 +40,10 @@ fn main() {
 }
 
 pub struct Model {
-    screen: [ScopaeScreen; 2],
-    vision: Vision,
+    // screen: [ScopaeScreen; 2],
+    io: ScopaeIo,
     ui: UI,
-    serial_port: SerialOutput,
+    // serial_port: SerialOutput,
 }
 
 fn model(app: &App) -> Model {
@@ -63,26 +63,22 @@ fn model(app: &App) -> Model {
 
     // query().iter().for_each(|cam| println!("{:?}", cam));
 
-    let screen = [
-        ScopaeScreen::new(app, Point2::new(12.0, 12.0)),
-        ScopaeScreen::new(app, Point2::new(8.0, 8.0)),
-    ];
-
-    let mut vision = Vision::new(app);
-    vision.initialize();
-
-    vision.update_camera(app, win);
+    // let screen = [
+    //     ScopaeScreen::new(app, Point2::new(12.0, 12.0)),
+    //     ScopaeScreen::new(app, Point2::new(8.0, 8.0)),
+    // ];
 
     Model {
-        screen,
-        vision,
+        // screen,
         ui: UI::new(&window),
-        serial_port: SerialOutput::new(PORT_NAME, false),
+        // serial_port: SerialOutput::new(PORT_NAME, false),
+        io: ScopaeIo::new(app),
     }
 }
 
 fn update(app: &App, model: &mut Model, update: Update) {
     // model.ui.update(update);
+    model.io.update(app);
 }
 
 fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event::WindowEvent) {
@@ -97,14 +93,12 @@ fn view(app: &App, model: &Model, frame: Frame) {
 
     let win = app.window_rect();
 
-    for screen in &model.screen {
-        screen.draw_to_frame(&draw);
-    }
+    // for screen in &model.screen {
+    //     screen.draw_to_frame(&draw);
+    // }
 
     let offset = app.mouse.position();
 
- 
-
     draw.to_frame(app, &frame).unwrap();
-    model.ui.draw(&frame);
+    // model.ui.draw(&frame);
 }

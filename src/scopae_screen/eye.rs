@@ -41,7 +41,7 @@ impl Eye {
     pub(crate) fn update(&self, t: f32) {
         // .eye.set_center(app.mouse.position());
 
-        self.eye.update_openess(t);
+        // self.update_openess(t);
     }
 }
 trait EaseExt {

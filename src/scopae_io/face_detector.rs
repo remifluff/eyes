@@ -49,11 +49,11 @@ impl FaceDetector {
         let detector = Arc::clone(&self.detector);
         let faces = Arc::clone(&self.faces);
 
-        let handle = thread::spawn(move || {
-            if let Ok(mut dectector) = detector.lock() {
-                *faces.lock().unwrap() = dectector.detect(&image.clone());
-            }
-        });
+        // let handle = thread::spawn(move || {
+        //     if let Ok(mut dectector) = detector.lock() {
+        //         *faces.lock().unwrap() = dectector.detect(&image.clone());
+        //     }
+        // });
     }
 
     pub fn draw_face(&self, draw: &Draw, screen: Rect, offset: Point2, scale_factor: f32) {

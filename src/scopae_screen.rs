@@ -47,22 +47,22 @@ impl ScopaeScreen {
         self.eye.draw(&draw);
     }
 
-    fn draw(&self) -> &Draw {
-        &self.fbo.draw();
+    // fn draw(&self) -> &Draw {
+    //     &self.fbo.draw();
 
-        let draw = screen.draw();
+    //     let draw = screen.draw();
 
-        draw.background().color(WHITE);
-        self.render(app);
-        self.send_to_screen(app);
-        self.draw_to_frame(app);
-    }
+    //     draw.background().color(WHITE);
+    //     self.render(app);
+    //     self.send_to_screen(app);
+    //     self.draw_to_frame(app);
+    // }
 
     pub fn render(&self, a: &App) {
         self.fbo.render(a)
     }
 
     pub fn output_to_screens(&self, a: &App) {
-        self.fbo.snapshot_texture(a, ScopaeScreen::image_handler)
+        // self.fbo.snapshot_texture(a, ScopaeScreen::image_handler)
     }
 }
