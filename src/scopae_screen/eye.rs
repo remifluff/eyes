@@ -1,4 +1,3 @@
-use crate::{serial_Output, Fbo, Model, PORT};
 use nannou::{ease, prelude::*};
 use wgpu::TextueSnapshot;
 
@@ -37,6 +36,12 @@ impl Eye {
     pub fn update_openess(&mut self, percent: f32) {
         percent.blink_ease(1.0);
         self.open_percent = percent;
+    }
+
+    pub(crate) fn update(&self, t: f32) {
+        // .eye.set_center(app.mouse.position());
+
+        self.eye.update_openess(t);
     }
 }
 trait EaseExt {

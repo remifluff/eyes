@@ -11,12 +11,10 @@ pub struct SerialOutput {
 }
 use serial2::SerialPort;
 
-use crate::fbo::Fbo;
-
 impl SerialOutput {
     pub const fn new(port_name: &str, print_activity: bool) -> SerialOutput {
         SerialOutput {
-            port: None,
+            port: anyhow!("not yet connected"),
             connected: false,
             print_activity,
             port_name: port_name.to_owned(),
@@ -30,13 +28,12 @@ impl SerialOutput {
     }
 
     pub fn write_FBO(&self, mut buffer: Vec<u8>, fbo: Fbo) -> Result<(), Error> {
+        let mut buf: Vec<u8> = Vec::new();
+
         for pix in fbo.image_buffer.pixels() {
             let val = pix.to_luma().channels()[0];
             buf.push(val);
         }
-        image_handler(buf);
-
-        let mut buf: Vec<u8> = Vec::new();
 
         let mut send_buffer: Vec<u8> = Vec::new();
 

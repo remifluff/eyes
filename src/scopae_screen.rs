@@ -1,8 +1,4 @@
-<<<<<<< HEAD:src/screen.rs
-use crate::{serial_Output, Fbo, Model, PORT};
-=======
-use crate::{Connection, Model, PORT};
->>>>>>> 7c65c0e987f48d6d5dabee4ea630ec978218182d:src/scopae_screen.rs
+use crate::Model;
 use nannou::prelude::*;
 use wgpu::TextueSnapshot;
 
@@ -24,6 +20,7 @@ pub struct ScopaeScreen {
 impl ScopaeScreen {
     pub fn new(a: &App, dim: Point2) -> ScopaeScreen {
         let frame_buffer = Fbo::new(a, dim);
+
         ScopaeScreen {
             fbo: frame_buffer,
             eye: Eye {
@@ -37,33 +34,35 @@ impl ScopaeScreen {
         }
     }
 
-    pub fn update(&self, eye_targer: Point2) {
-        // .eye.set_center(app.mouse.position());
-
-        self.eye.update_openess(t);
+    pub fn update(&mut self, eye_targer: Point2, t: f32) {
+        self.eye.update(t);
     }
+
+    fn render_fbo() {}
+
+    pub fn draw_eye_to_fbo() {}
+
+    pub fn draw_previews(&self, draw: &Draw) {
+        draw.texture(&self.fbo.texture).w_h(20.0, 20.0);
+        self.eye.draw(&draw);
+    }
+
     fn draw(&self) -> &Draw {
-        &self.fbo.draw()
+        &self.fbo.draw();
+
         let draw = screen.draw();
 
         draw.background().color(WHITE);
-        screen.render(app);
-        screen.send_to_screen(app);
-        screen.draw_to_frame(app);
+        self.render(app);
+        self.send_to_screen(app);
+        self.draw_to_frame(app);
     }
 
     pub fn render(&self, a: &App) {
         self.fbo.render(a)
     }
 
-    pub fn draw_to_frame(&self, draw: &Draw) {
-        draw.texture(&self.fbo.texture).w_h(20.0, 20.0);
-        self.eye.draw(&draw);
-
-        // .xy(self.position);
-    }
-
-    pub fn send_to_screen(&self, a: &App) {
+    pub fn output_to_screens(&self, a: &App) {
         self.fbo.snapshot_texture(a, ScopaeScreen::image_handler)
     }
 }

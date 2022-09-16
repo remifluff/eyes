@@ -1,13 +1,17 @@
 use std::fmt::Error;
 use std::sync::{Arc, Mutex};
 
-use crate::{serial_Output, Model};
-
-use ::image::{GenericImageView, Pixels};
 use futures::future::ok;
-use nannou::draw::properties::spatial::dimension;
-use nannou::image::{self, DynamicImage, ImageBuffer, Pixel, Rgb, RgbImage};
-use nannou::{draw, frame, prelude::*, wgpu::Device};
+use nannou::{
+    draw::{self, properties::spatial::dimension},
+    frame,
+    image::{
+        self, DynamicImage, GenericImageView, ImageBuffer,
+        Pixel, Pixels, Rgb, RgbImage,
+    },
+    prelude::*,
+    wgpu::Device,
+};
 use serial2::SerialPort;
 
 use anyhow::{anyhow, Result};
@@ -29,7 +33,8 @@ impl Fbo {
         let window = a.main_window();
         let device = window.device();
 
-        let texture_capturer = wgpu::TextureCapturer::default();
+        let texture_capturer =
+            wgpu::TextureCapturer::default();
 
         // // Create our custom texture.
         let sample_count = window.msaa_samples();
@@ -50,16 +55,26 @@ impl Fbo {
             u32::from_f32(dimensions.y).unwrap(),
         ];
 
-        let texture =
-            wgpu::Texture::from_image(a, &DynamicImage::new_rgb8(texture_size[0], texture_size[1]));
+        let texture = wgpu::Texture::from_image(
+            a,
+            &DynamicImage::new_rgb8(
+                texture_size[0],
+                texture_size[1],
+            ),
+        );
 
         // Create our `Draw` instance and a renderer for it.
         let draw = nannou::Draw::new();
         let descriptor = texture.descriptor();
-        let renderer =
-            nannou::draw::RendererBuilder::new().build_from_texture_descriptor(device, descriptor);
+        let renderer = nannou::draw::RendererBuilder::new()
+            .build_from_texture_descriptor(
+                device, descriptor,
+            );
 
-        let img = DynamicImage::new_rgb8(texture_size[0], texture_size[1]);
+        let img = DynamicImage::new_rgb8(
+            texture_size[0],
+            texture_size[1],
+        );
         let image_capture = Arc::new(Mutex::new(img));
 
         Fbo {
@@ -68,7 +83,6 @@ impl Fbo {
             draw,
             renderer,
             texture_capturer,
-            image: None,
             image_buffer: image_capture,
             pixel_count: texture_size[0] * texture_size[1],
         }
@@ -94,27 +108,43 @@ impl Fbo {
         };
 
         let descriptor = self.texture.descriptor();
-        let mut encoder = device.create_command_encoder(&ce_desc);
+        let mut encoder =
+            device.create_command_encoder(&ce_desc);
         let mut renderer =
-            nannou::draw::RendererBuilder::new().build_from_texture_descriptor(device, descriptor);
+            nannou::draw::RendererBuilder::new()
+                .build_from_texture_descriptor(
+                    device, descriptor,
+                );
 
         // model.texture;
 
-        renderer.render_to_texture(device, &mut encoder, &self.draw, &self.texture);
+        renderer.render_to_texture(
+            device,
+            &mut encoder,
+            &self.draw,
+            &self.texture,
+        );
         window.queue().submit(Some(encoder.finish()));
     }
 
-    pub fn snapshot_texture(&self, a: &App, image_handler: fn(Vec<u8>)) {
+    pub fn snapshot_texture(
+        &self,
+        a: &App,
+        image_handler: fn(Vec<u8>),
+    ) {
         let window = a.main_window();
         let device = window.device();
         let ce_desc = wgpu::CommandEncoderDescriptor {
             label: Some("texture renderer"),
         };
 
-        let mut encoder = device.create_command_encoder(&ce_desc);
-        let snapshot = self
-            .texture_capturer
-            .capture(device, &mut encoder, &self.texture);
+        let mut encoder =
+            device.create_command_encoder(&ce_desc);
+        let snapshot = self.texture_capturer.capture(
+            device,
+            &mut encoder,
+            &self.texture,
+        );
 
         window.queue().submit(Some(encoder.finish()));
 
@@ -128,10 +158,15 @@ impl Fbo {
         snapshot
             .read(move |result| {
                 || -> anyhow::Result<()> {
-                    let a = *buf.lock().map_err(|e| anyhow!("ew"))?;
-                    a = DynamicImage::ImageRgba8(result?.to_owned());
+                    let a = *buf
+                        .lock()
+                        .map_err(|e| anyhow!("ew"))?;
+                    a = DynamicImage::ImageRgba8(
+                        result?.to_owned(),
+                    );
                     Ok(())
                 };
+                //
             })
             .unwrap();
     }
