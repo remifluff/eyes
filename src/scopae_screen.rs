@@ -1,34 +1,61 @@
-use crate::{Connection, Fbo, Model, PORT};
+use crate::{Connection, Model, PORT};
 use nannou::prelude::*;
 use wgpu::TextueSnapshot;
 
-pub struct Screen {
-    pub fbo: Fbo,
+mod eye;
+use eye::Eye;
 
-    pub dim: Point2,
-    position: Point2,
+pub mod fbo;
+use fbo::Fbo;
+
+pub struct ScopaeScreen {
+    pub fbo: Fbo,
+    eye: Eye,
+    pixel_resolution: Point2,
+    screen_location: Rect,
+    // write_timer: Timer,
+    // vision_timer: Timer,
 }
 
-impl Screen {
-    pub fn new(a: &App, dim: Point2) -> Screen {
+impl ScopaeScreen {
+    pub fn new(a: &App, dim: Point2) -> ScopaeScreen {
         let frame_buffer = Fbo::new(a, dim);
-        Screen {
+        ScopaeScreen {
             fbo: frame_buffer,
-            dim,
-            position: Point2::new(0.0, 0.0),
+            eye: Eye {
+                x: (0.0),
+                y: (0.0),
+                r: (3.0),
+                open_percent: (0.1),
+            },
+            pixel_resolution: todo!(),
+            screen_location: todo!(),
         }
     }
 
-    pub fn draw(&self) -> &Draw {
+    pub fn update(&self, eye_targer: Point2) {
+        // .eye.set_center(app.mouse.position());
+
+        self.eye.update_openess(t);
+    }
+    fn draw(&self) -> &Draw {
         &self.fbo.draw()
+        let draw = screen.draw();
+
+        draw.background().color(WHITE);
+        screen.render(app);
+        screen.send_to_screen(app);
+        screen.draw_to_frame(app);
     }
 
     pub fn render(&self, a: &App) {
         self.fbo.render(a)
     }
 
-    pub fn draw_to_frame(&self, a: &App) {
-        a.draw().texture(&self.fbo.texture).w_h(20.0, 20.0);
+    pub fn draw_to_frame(&self, draw: &Draw) {
+        draw.texture(&self.fbo.texture).w_h(20.0, 20.0);
+        self.eye.draw(&draw);
+
         // .xy(self.position);
     }
 
@@ -61,6 +88,6 @@ impl Screen {
     }
 
     pub fn send_to_screen(&self, a: &App) {
-        self.fbo.snapshot_texture(a, Screen::image_handler)
+        self.fbo.snapshot_texture(a, ScopaeScreen::image_handler)
     }
 }
