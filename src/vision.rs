@@ -27,14 +27,13 @@ pub struct Vision {
 }
 
 impl Vision {
-    pub fn new(app: &App, model_path: &str, (w, h): (f32, f32)) -> Vision {
-        let image =
-            image::open("model/group-portrait-happy-young-casual-people-28761154.jpg").unwrap();
+    pub fn new(app: &App, model_path: &str, (w, h): (f32, f32), webcam_number: usize) -> Vision {
+        let image = image::open("model/faces.jpg").unwrap();
 
         let mut wh = Point2::new(w, h);
 
         let camera = if let Ok(mut c) = ThreadedCamera::new(
-            0,
+            webcam_number,
             Some(CameraFormat::new_from(
                 w as u32,
                 h as u32,
@@ -126,8 +125,8 @@ impl Vision {
 
     pub fn draw_camera(&self, draw: &Draw, offset: Point2) {
         draw.texture(&self.texture)
-            .wh(self.wh * self.scale_factor)
-            .xy(vec2(0.0, 0.0));
+            .wh(self.wh * self.scale_factor * vec2(-1.0, 1.0))
+            .xy(vec2(0.0, 0.0) + offset);
     }
 
     pub fn draw_face(&self, draw: &Draw, screen: Rect, offset: Point2) {
@@ -135,15 +134,14 @@ impl Vision {
             let offset_pos = self.wh;
 
             for face in faces.iter() {
-                let face_center = face.xy() + (face.wh() * vec2(0.5, 0.5));
+                // let xy = (face.xy() + face.wh() * 0.5 - self.wh * 0.5)
+                //     * vec2(1.0, -1.0)
+                //     * self.scale_factor;
 
-                let mirror = face_center * vec2(-1.0, 1.0);
-
-                let center = self.wh * vec2(0.5, -0.5);
-
-                let xy = (mirror + center) * self.scale_factor;
-
-                draw.rect().wh(face.wh() * self.scale_factor).xy(xy);
+                draw.rect()
+                    .wh(face.wh() * self.scale_factor)
+                    .xy(face.xy() * self.scale_factor + offset)
+                    .color(BLUE);
             }
         }
     }
@@ -172,12 +170,21 @@ impl AsyncDetector {
     pub fn detect(&mut self, image: &DynamicImage) -> Vec<Rect> {
         let gray = image.to_luma8();
         let (w, h) = gray.dimensions();
+
         let image = ImageData::new(&gray, w, h);
         self.inner
             .detect(&image)
             .to_owned()
             .iter()
-            .map(|x| rect_from_faceInfo(x))
+            .map(|face| {
+                let image_wh = vec2(w as f32, h as f32);
+                let bbox = face.bbox();
+                let wh = vec2(bbox.width() as f32, bbox.height() as f32);
+                let mut xy = vec2(bbox.x() as f32, bbox.y() as f32);
+                xy = -xy - wh / 2.0 + image_wh / 2.0;
+
+                Rect::from_xy_wh(xy, wh)
+            })
             .collect()
     }
 }
@@ -198,16 +205,16 @@ pub fn update_faces(
     });
 }
 
-fn rect_from_faceInfo(face: &FaceInfo) -> Rect {
-    let bbox = face.bbox();
-    let (mut x, mut y, mut w, mut h) = (
-        bbox.x() as f32,
-        bbox.y() as f32,
-        bbox.width() as f32,
-        bbox.height() as f32,
-    );
+// fn rect_from_faceInfo(face: &FaceInfo) -> Rect {
+//     let bbox = face.bbox();
+//     let (mut x, mut y, mut w, mut h) = (
+//         bbox.x() as f32,
+//         bbox.y() as f32,
+//         bbox.width() as f32,
+//         bbox.height() as f32,
+//     );
 
-    // x = -(x - middle) + middle;
-    // y = -(y - middle) + middle;
-    Rect::from_x_y_w_h(x, y, w, h)
-}
+//     // x = -(x - middle) + middle;
+//     // y = -(y - middle) + middle;
+//     Rect::from_x_y_w_h(x, y, w, h)
+// }

@@ -6,6 +6,7 @@ use std::{os::unix::prelude::DirEntryExt, string, time::Duration};
 
 use nannou::draw;
 use nannou::draw::primitive::rect;
+use nannou::lyon::geom::euclid::SideOffsets2D;
 use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
 use nokhwa::{query, Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use osc::Message;
@@ -51,6 +52,7 @@ pub struct Model {
     vision_timer: Timer,
     screen: [Screen; 2],
     vision: Vision,
+    vision2: Vision,
 }
 
 fn model(app: &App) -> Model {
@@ -73,17 +75,23 @@ fn model(app: &App) -> Model {
         Screen::new(app, Point2::new(12.0, 12.0)),
         Screen::new(app, Point2::new(8.0, 8.0)),
     ];
-    let mut vision = Vision::new(app, MODEL_PATH, CAMERA_WH);
+    let mut vision = Vision::new(app, MODEL_PATH, CAMERA_WH, 0);
+    let mut vision2 = Vision::new(app, MODEL_PATH, CAMERA_WH, 2);
+
     vision.initialize();
+    vision2.initialize();
+
     let win = app.window_rect();
 
     vision.update_camera(app, win);
+    vision2.update_camera(app, win);
 
     Model {
         eye,
         write_timer,
         screen,
         vision,
+        vision2,
         vision_timer,
     }
 }
@@ -92,6 +100,8 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     let win = app.window_rect();
 
     model.vision.update_camera(app, win);
+    model.vision2.update_camera(app, win);
+
     let t = app.time;
 
     model.eye.set_center(app.mouse.position());
@@ -101,6 +111,7 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     if model.vision_timer.check(t) {
         unsafe {
             model.vision.update_faces(app);
+            model.vision2.update_faces(app);
         }
     }
 
@@ -130,9 +141,14 @@ fn view(app: &App, model: &Model, frame: Frame) {
         screen.draw_to_frame(app);
     }
 
-    let offset = app.mouse.position();
+    let offset = vec2(100.0, 100.0);
+    let offset2 = vec2(-100.0, -100.0);
+
     model.vision.draw_camera(&draw, offset);
     model.vision.draw_face(&draw, win, offset);
+
+    model.vision2.draw_camera(&draw, offset2);
+    model.vision2.draw_face(&draw, win, offset2);
 
     draw.to_frame(app, &frame).unwrap();
 }
