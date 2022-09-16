@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::{screen, Connection, Fbo, Model, CAMERA_READY, PORT};
+use crate::{screen, serial_Output, Fbo, Model, CAMERA_READY, PORT};
 use image::{GenericImageView, ImageBuffer, Rgb};
 use nannou::draw::primitive::rect;
 use nannou::image::{DynamicImage, GrayImage};
@@ -17,8 +17,7 @@ pub struct Vision {
     image: DynamicImage,
     texture: Texture,
 
-    detector: Arc<Mutex<AsyncDetector>>,
-
+    // detector: Arc<Mutex<AsyncDetector>>
     faces: Arc<Mutex<Vec<Rect>>>,
     downscale_factor: f32,
 
@@ -108,7 +107,7 @@ impl Vision {
         // if let Ok(face) = self.faces.lock() {
         //     iter()
         // }
-
+        //
         if let Some(cam) = &mut self.camera {
             if let Ok(img) = &mut cam.poll_frame() {
                 let (thumb_w, thumb_h) = (
