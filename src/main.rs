@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 use core::num;
-use std::time::Instant;
 use std::{os::unix::prelude::DirEntryExt, string, time::Duration};
 
 use nannou::draw;
@@ -10,13 +9,17 @@ use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
 use nokhwa::{query, Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use osc::Message;
 use rustface::FaceInfo;
+use std::time::Instant;
 use wgpu::Texture;
 
-pub mod connection;
-use crate::fbo::Fbo;
-mod fbo;
-use crate::connection::Connection;
+pub mod serial_Output;
+use crate::serial_Output::SerialOutput;
 
+pub use serial2::SerialPort;
+
+use crate::fbo::Fbo;
+
+mod fbo;
 mod screen;
 use screen::Screen;
 
@@ -26,10 +29,8 @@ use eye::Eye;
 mod vision;
 use vision::Vision;
 
-pub use serial2::SerialPort;
-
 const PORT_NAME: &str = "/dev/cu.usbmodem105641701";
-static mut PORT: Connection = Connection::new(PORT_NAME, false);
+
 static mut FACES: Vec<FaceInfo> = Vec::new();
 
 static mut CAMERA_READY: bool = false;
@@ -51,6 +52,7 @@ pub struct Model {
     vision_timer: Timer,
     screen: [Screen; 2],
     vision: Vision,
+    serial_port: serial_Output,
 }
 
 fn model(app: &App) -> Model {
@@ -60,9 +62,6 @@ fn model(app: &App) -> Model {
         r: (3.0),
         open_percent: (0.1),
     };
-    unsafe {
-        PORT.open_port();
-    }
 
     let write_timer = Timer::start_new(app.time, 0.0001);
     let vision_timer = Timer::start_new(app.time, 0.1);
@@ -85,6 +84,7 @@ fn model(app: &App) -> Model {
         screen,
         vision,
         vision_timer,
+        serial_port: serial_Output::new(PORT_NAME, false),
     }
 }
 

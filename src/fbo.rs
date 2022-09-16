@@ -1,9 +1,16 @@
-use crate::{Connection, Model, PORT};
+use std::fmt::Error;
+use std::sync::{Arc, Mutex};
 
+use crate::{serial_Output, Model};
+
+use ::image::{GenericImageView, Pixels};
+use futures::future::ok;
 use nannou::draw::properties::spatial::dimension;
 use nannou::image::{self, DynamicImage, ImageBuffer, Pixel, Rgb, RgbImage};
 use nannou::{draw, frame, prelude::*, wgpu::Device};
 use serial2::SerialPort;
+
+use anyhow::{anyhow, Result};
 
 pub struct Fbo {
     pub texture: wgpu::Texture,
@@ -11,10 +18,12 @@ pub struct Fbo {
     renderer: draw::Renderer,
     texture_size: [u32; 2],
     texture_capturer: wgpu::TextureCapturer,
-    image: Option<ImageBuffer<image::Rgba<u8>, Vec<u8>>>,
+    image_buffer: Arc<Mutex<DynamicImage>>,
+    // image: Option<ImageBuffer<image::Rgba<u8>, Vec<u8>>>,
     pixel_count: u32,
 }
 unsafe impl Send for Fbo {}
+
 impl Fbo {
     pub fn new(a: &App, dimensions: Point2) -> Fbo {
         let window = a.main_window();
@@ -50,6 +59,9 @@ impl Fbo {
         let renderer =
             nannou::draw::RendererBuilder::new().build_from_texture_descriptor(device, descriptor);
 
+        let img = DynamicImage::new_rgb8(texture_size[0], texture_size[1]);
+        let image_capture = Arc::new(Mutex::new(img));
+
         Fbo {
             texture,
             texture_size,
@@ -57,9 +69,17 @@ impl Fbo {
             renderer,
             texture_capturer,
             image: None,
+            image_buffer: image_capture,
             pixel_count: texture_size[0] * texture_size[1],
-            // texture_reshaper,
         }
+    }
+
+    pub fn pixels(&self) -> Result<Pixels<DynamicImage>> {
+        Ok(self
+            .image_buffer
+            .try_lock()
+            .map_err(|e| anyhow!("wqqwqw"))?
+            .pixels())
     }
 
     pub fn draw(&self) -> &Draw {
@@ -84,14 +104,6 @@ impl Fbo {
         window.queue().submit(Some(encoder.finish()));
     }
 
-    pub fn print_image(&self) {
-        if let Some(img) = &self.image {
-            for pix in img.pixels() {
-                // print!("{:?}", pix);
-            }
-        }
-    }
-
     pub fn snapshot_texture(&self, a: &App, image_handler: fn(Vec<u8>)) {
         let window = a.main_window();
         let device = window.device();
@@ -106,21 +118,28 @@ impl Fbo {
 
         window.queue().submit(Some(encoder.finish()));
 
+        // let handle = thread::spawn(move || {
+        //     if let Ok(mut dectector) = detector.lock() {
+        //         *faces.lock().unwrap() = dectector.detect(&m);
+        //     }
+
+        let buf = self.image_buffer.clone();
+
         snapshot
             .read(move |result| {
-                let image = result.expect("failed to map texture memory").to_owned();
-                // let mut port = connection;
-
-                let mut buf: Vec<u8> = Vec::new();
-                for pix in image.pixels() {
-                    let val = pix.to_luma().channels()[0];
-                    buf.push(val);
-                }
-                image_handler(buf);
+                || -> anyhow::Result<()> {
+                    let a = *buf.lock().map_err(|e| anyhow!("ew"))?;
+                    a = DynamicImage::ImageRgba8(result?.to_owned());
+                    Ok(())
+                };
             })
             .unwrap();
     }
 }
+
+// pub fn print_image(&self) {
+
+//  // let mut port = connection;
 
 // fn snapshot_callback(r: Result<Rgba8AsyncMappedImageBuffer<'r>, BufferAsyncError>,){};
 // self.texture_capturer.await_active_snapshots(device);
