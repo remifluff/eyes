@@ -11,11 +11,17 @@ serial2 = "0.1.6"
 futures = "0.3"
 nannou_osc = "0.18.0"
 rustface = "0.1.7"
+<<<<<<< HEAD
 anyhow = "1.0.64"
+=======
+nannou_egui = "0.5.0"
+
+>>>>>>> 7c65c0e987f48d6d5dabee4ea630ec978218182d
 
 nokhwa = {version = "0.9.4", features = ["input-v4l", "output-threaded"]}
 
+
 [dependencies.image]
-version = "0.23.14"
+version = "0.23.14" 
 default-features = false
 

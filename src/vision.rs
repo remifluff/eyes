@@ -1,16 +1,24 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+<<<<<<< HEAD
 use crate::{screen, serial_Output, Fbo, Model, CAMERA_READY, PORT};
+=======
+use crate::{scopae_screen, Connection, Model, CAMERA_READY, PORT};
+>>>>>>> 7c65c0e987f48d6d5dabee4ea630ec978218182d
 use image::{GenericImageView, ImageBuffer, Rgb};
 use nannou::draw::primitive::rect;
 use nannou::image::{DynamicImage, GrayImage};
 use nannou::lyon::geom::euclid::point2;
+use nannou::lyon::math::Point;
 use nannou::prelude::*;
 use nokhwa::{Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use rustface::{Detector, FaceInfo, ImageData};
 use std::sync::mpsc::{self, channel, Receiver, Sender};
 use wgpu::{TextueSnapshot, Texture};
+
+const MODEL_PATH: &str = "model/seeta_fd_frontal_v1.0.bin";
+const CAMERA_WH: (f32, f32) = (320.0, 240.0);
 
 pub struct Vision {
     camera: Option<ThreadedCamera>,
@@ -26,9 +34,9 @@ pub struct Vision {
 }
 
 impl Vision {
-    pub fn new(app: &App, model_path: &str, (w, h): (f32, f32)) -> Vision {
-        let image =
-            image::open("model/group-portrait-happy-young-casual-people-28761154.jpg").unwrap();
+    pub fn new(app: &App) -> Vision {
+        let image = image::open("model/faces.jpg").unwrap();
+        let (w, h) = CAMERA_WH;
 
         let mut wh = Point2::new(w, h);
 
@@ -49,30 +57,16 @@ impl Vision {
             None
         };
 
-        // let mut detector_raw = rustface::create_detector(model_path).unwrap();
-
-        // let image = DynamicImage::new_rgb8(w, h);
         let texture = Texture::from_image::<&App>(app, &image);
 
-        // let foo = Box::new(Foo { foo: 1 }) as Box<dyn Bar + Send>;
-
-        let mut detector_raw = rustface::create_detector(model_path).unwrap();
-
-        // let foo = Box::new(Foo { foo: 1 }) as Box<dyn Bar + Send>;
-
-        // let (tx, rx): (
-        //     Sender<Box<dyn Detector + Send>>,
-        //     Receiver<Box<dyn Detector + Send>>,
-        // ) = channel();
-
-        // tx
+        let mut detector_raw = rustface::create_detector(MODEL_PATH).unwrap();
 
         detector_raw.set_min_face_size(40);
         detector_raw.set_score_thresh(2.0);
         detector_raw.set_pyramid_scale_factor(0.1);
         detector_raw.set_slide_window_step(4, 4);
 
-        let mut detector = AsyncDetector {
+        let detector = AsyncDetector {
             inner: detector_raw,
         };
 
@@ -90,24 +84,30 @@ impl Vision {
     }
     pub fn initialize(&self) {}
 
-    pub fn update_faces(&mut self, app: &App) {
-        update_faces(
-            Arc::clone(&self.detector),
-            Arc::clone(&self.faces),
-            &self.image,
-        );
+    pub fn update_faces(&mut self) {
+        let detector = Arc::clone(&self.detector);
+        let faces = Arc::clone(&self.faces);
+        let image = &self.image;
+        let m = image.clone();
 
-        // // let f = Vec::<FaceInfo>::new();
-        // // *faces = f;
+        let handle = thread::spawn(move || {
+            if let Ok(mut dectector) = detector.lock() {
+                *faces.lock().unwrap() = dectector.detect(&m);
+            }
+        });
     }
     pub fn update_camera(&mut self, app: &App, screen: Rect) {
         self.scale_factor = screen.wh() / self.wh;
         self.scale_factor = Point2::from([self.scale_factor.max_element(); 2]);
+<<<<<<< HEAD
         // self.scale_factor = vec2(1, 0.2);
         // if let Ok(face) = self.faces.lock() {
         //     iter()
         // }
         //
+=======
+
+>>>>>>> 7c65c0e987f48d6d5dabee4ea630ec978218182d
         if let Some(cam) = &mut self.camera {
             if let Ok(img) = &mut cam.poll_frame() {
                 let (thumb_w, thumb_h) = (
@@ -125,7 +125,7 @@ impl Vision {
 
     pub fn draw_camera(&self, draw: &Draw, offset: Point2) {
         draw.texture(&self.texture)
-            .wh(self.wh * self.scale_factor)
+            .wh(self.wh * self.scale_factor * vec2(-1.0, 1.0))
             .xy(vec2(0.0, 0.0));
     }
 
@@ -134,15 +134,14 @@ impl Vision {
             let offset_pos = self.wh;
 
             for face in faces.iter() {
-                let face_center = face.xy() + (face.wh() * vec2(0.5, 0.5));
+                // let xy = (face.xy() + face.wh() * 0.5 - self.wh * 0.5)
+                //     * vec2(1.0, -1.0)
+                //     * self.scale_factor;
 
-                let mirror = face_center * vec2(-1.0, 1.0);
-
-                let center = self.wh * vec2(0.5, -0.5);
-
-                let xy = (mirror + center) * self.scale_factor;
-
-                draw.rect().wh(face.wh() * self.scale_factor).xy(xy);
+                draw.rect()
+                    .wh(face.wh() * self.scale_factor)
+                    .xy(face.xy() * self.scale_factor)
+                    .color(BLUE);
             }
         }
     }
@@ -171,12 +170,21 @@ impl AsyncDetector {
     pub fn detect(&mut self, image: &DynamicImage) -> Vec<Rect> {
         let gray = image.to_luma8();
         let (w, h) = gray.dimensions();
+
         let image = ImageData::new(&gray, w, h);
         self.inner
             .detect(&image)
             .to_owned()
             .iter()
-            .map(|x| rect_from_faceInfo(x))
+            .map(|face| {
+                let image_wh = vec2(w as f32, h as f32);
+                let bbox = face.bbox();
+                let wh = vec2(bbox.width() as f32, bbox.height() as f32);
+                let mut xy = vec2(bbox.x() as f32, bbox.y() as f32);
+                xy = -xy - wh / 2.0 + image_wh / 2.0;
+
+                Rect::from_xy_wh(xy, wh)
+            })
             .collect()
     }
 }
@@ -195,18 +203,4 @@ pub fn update_faces(
 
         // // faces
     });
-}
-
-fn rect_from_faceInfo(face: &FaceInfo) -> Rect {
-    let bbox = face.bbox();
-    let (mut x, mut y, mut w, mut h) = (
-        bbox.x() as f32,
-        bbox.y() as f32,
-        bbox.width() as f32,
-        bbox.height() as f32,
-    );
-
-    // x = -(x - middle) + middle;
-    // y = -(y - middle) + middle;
-    Rect::from_x_y_w_h(x, y, w, h)
 }
