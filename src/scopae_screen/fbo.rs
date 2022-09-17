@@ -1,23 +1,34 @@
-use crate::{Connection, Model, PORT};
+use crate::{Connection, Model};
 
 use nannou::draw::properties::spatial::dimension;
 use nannou::image::{self, DynamicImage, ImageBuffer, Pixel, Rgb, RgbImage};
 use nannou::{draw, frame, prelude::*, wgpu::Device};
 use serial2::SerialPort;
+use std::fmt::Error;
+use std::sync::{Arc, Mutex};
+
+use anyhow::anyhow;
+use anyhow::Result;
+
+// use crate::{serial_Output, Model};
+
+use ::image::{GenericImageView, Pixels};
+use futures::future::ok;
 
 pub struct Fbo {
     pub texture: wgpu::Texture,
+
     draw: Draw,
     renderer: draw::Renderer,
-    texture_size: [u32; 2],
+    resolution: (u32, u32),
     texture_capturer: wgpu::TextureCapturer,
 
-    image: Option<ImageBuffer<image::Rgba<u8>, Vec<u8>>>,
+    pub image_buffer: Arc<Mutex<DynamicImage>>,
     pixel_count: u32,
 }
 unsafe impl Send for Fbo {}
 impl Fbo {
-    pub fn new(a: &App, dimensions: Point2) -> Fbo {
+    pub fn new(a: &App, resolution: (u32, u32)) -> Fbo {
         let window = a.main_window();
         let device = window.device();
 
@@ -25,25 +36,17 @@ impl Fbo {
 
         // // Create our custom texture.
         let sample_count = window.msaa_samples();
-        // let texture = wgpu::TextureBuilder::new()
-        //     .size(texture_size)
-        //     // Our texture will be used as the RENDER_ATTACHMENT for our `Draw` render pass.
-        //     // It will also be SAMPLED by the `TextureCapturer` and `TextureResizer`.
-        //     .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
-        //     // Use nannou's default multisampling sample count.
-        //     .sample_count(sample_count)
-        //     // Use a spacious 16-bit linear sRGBA format suitable for high quality drawing.
-        //     .format(wgpu::TextureFormat::Rgba16Float)
-        //     // Build it!
-        //     .build(device);
 
-        let texture_size = [
-            u32::from_f32(dimensions.x).unwrap(),
-            u32::from_f32(dimensions.y).unwrap(),
-        ];
+        // TextureResizer
+        // let texture_size = [
+        //     u32::from_f32(dimensions.x).unwrap(),
+        //     u32::from_f32(dimensions.y).unwrap(),
+        // ];
+        let img = DynamicImage::new_rgb8(resolution.0, resolution.1);
+        let image_capture = Arc::new(Mutex::new(img));
 
         let texture =
-            wgpu::Texture::from_image(a, &DynamicImage::new_rgb8(texture_size[0], texture_size[1]));
+            wgpu::Texture::from_image(a, &DynamicImage::new_rgb8(resolution.0, resolution.1));
 
         // Create our `Draw` instance and a renderer for it.
         let draw = nannou::Draw::new();
@@ -53,12 +56,12 @@ impl Fbo {
 
         Fbo {
             texture,
-            texture_size,
+            resolution,
             draw,
             renderer,
             texture_capturer,
-            image: None,
-            pixel_count: texture_size[0] * texture_size[1],
+            image_buffer: image_capture,
+            pixel_count: resolution.0 * resolution.1,
             // texture_reshaper,
         }
     }
@@ -85,15 +88,7 @@ impl Fbo {
         window.queue().submit(Some(encoder.finish()));
     }
 
-    pub fn print_image(&self) {
-        if let Some(img) = &self.image {
-            for pix in img.pixels() {
-                // print!("{:?}", pix);
-            }
-        }
-    }
-
-    pub fn snapshot_texture(&self, a: &App, image_handler: fn(Vec<u8>)) {
+    pub fn snapshot_texture(&self, a: &App) {
         let window = a.main_window();
         let device = window.device();
         let ce_desc = wgpu::CommandEncoderDescriptor {
@@ -106,22 +101,15 @@ impl Fbo {
             .capture(device, &mut encoder, &self.texture);
 
         window.queue().submit(Some(encoder.finish()));
-
+        let buf = self.image_buffer.clone();
         snapshot
             .read(move |result| {
-                let image = result.expect("failed to map texture memory").to_owned();
-                // let mut port = connection;
-
-                let mut buf: Vec<u8> = Vec::new();
-                for pix in image.pixels() {
-                    let val = pix.to_luma().channels()[0];
-                    buf.push(val);
+                if let Ok(buf) = &mut buf.lock() {
+                    if let Ok(img) = result {
+                        **buf = DynamicImage::ImageRgba8(img.to_owned())
+                    }
                 }
-                image_handler(buf);
             })
             .unwrap();
     }
 }
-
-// fn snapshot_callback(r: Result<Rgba8AsyncMappedImageBuffer<'r>, BufferAsyncError>,){};
-// self.texture_capturer.await_active_snapshots(device);

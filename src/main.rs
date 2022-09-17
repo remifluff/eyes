@@ -9,7 +9,7 @@ use nannou::draw::primitive::rect;
 use nannou::lyon::geom::euclid::SideOffsets2D;
 use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
 use nannou_egui::egui::Slider;
-use nokhwa::{query, Camera, CameraFormat, FrameFormat, ThreadedCamera};
+use nokhwa::{query, Camera, CameraFormat, FrameFormat, Resolution, ThreadedCamera};
 use osc::Message;
 use rustface::FaceInfo;
 use wgpu::Texture;
@@ -32,11 +32,8 @@ use timer::Timer;
 
 pub use serial2::SerialPort;
 
-const PORT_NAME: &str = "/dev/cu.usbmodem105641701";
-static mut PORT: Connection = Connection::new(PORT_NAME, false);
-static mut FACES: Vec<FaceInfo> = Vec::new();
-
-static mut CAMERA_READY: bool = false;
+// const PORT_NAME: &str = "/dev/ttyprintk";
+const PORT_NAME: &str = "/dev/ttyACM0";
 
 const WIDTH: f32 = 640.0;
 const HEIGHT: f32 = 360.0;
@@ -57,10 +54,11 @@ fn main() {
 }
 
 pub struct Model {
-    screen: [ScopaeScreen; 2],
+    screen: Vec<ScopaeScreen>,
     vision: Vision,
     vision2: Vision,
     ui: UI,
+    port: Connection,
 }
 
 fn model(app: &App) -> Model {
@@ -73,24 +71,25 @@ fn model(app: &App) -> Model {
         .unwrap();
     let window = app.window(window_id).unwrap();
 
-    unsafe {
-        PORT.open_port();
-    }
+    let mut port = Connection::new(PORT_NAME, true);
+    port.open_port();
+    Connection::print_avaliable_ports();
 
     let write_timer = Timer::start_new(app.time, 0.0001);
     let vision_timer = Timer::start_new(app.time, 0.1);
 
-    query().iter().for_each(|cam| println!("{:?}", cam));
+    // query().iter().for_each(|cam| println!("{:?}", cam));
 
-    let screen = [
-        ScopaeScreen::new(app, Point2::new(12.0, 12.0)),
-        ScopaeScreen::new(app, Point2::new(8.0, 8.0)),
-    ];
+    let rez: (u32, u32) = (12, 12);
+    let mut screen = Vec::new();
+    screen.push(ScopaeScreen::new(app, rez));
+    // ScopaeScreen::new(app, Point2::new(8.0, 8.0)),
+
     let mut vision = Vision::new(app, 0);
     let mut vision2 = Vision::new(app, 2);
 
-    vision.initialize();
-    vision2.initialize();
+    vision.initialize_camera();
+    vision2.initialize_camera();
 
     let win = app.window_rect();
 
@@ -102,6 +101,7 @@ fn model(app: &App) -> Model {
         vision,
         vision2,
         ui: UI::new(&window),
+        port,
     }
 }
 
@@ -117,15 +117,17 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     model.vision.update_faces();
 
-    for screen in &model.screen {
-        let draw = screen.render_texture(&app, app.mouse.position());
-
-        // screen.draw_to_frame(app);
+    for screen in &mut model.screen {
+        screen.update(&app, app.mouse.position(), t);
+        screen.render_texture(&app);
+        if let Some(buf) = screen.serial_packet() {
+            model.port.write(buf);
+        }
     }
 }
 
 fn raw_window_event(_app: &App, model: &mut Model, event: &nannou::winit::event::WindowEvent) {
-    model.screen_box.egui.handle_raw_event(event);
+    // model.screen_box.egui.handle_raw_event(event);
 }
 
 fn view(app: &App, model: &Model, frame: Frame) {
@@ -142,7 +144,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
     let offset = vec2(0.0, 0.0);
     let offset2 = vec2(-100.0, -100.0);
     for screen in &model.screen {
-        screen.draw_to_frame(app);
+        screen.draw_to_frame(&draw);
     }
 
     model.vision.draw_camera(&draw, offset);
@@ -154,5 +156,5 @@ fn view(app: &App, model: &Model, frame: Frame) {
         screen.draw_to_frame(&draw);
     }
     draw.to_frame(app, &frame).unwrap();
-    model.screen_box.draw(&frame);
+    // model.screen_box.draw(&frame);
 }

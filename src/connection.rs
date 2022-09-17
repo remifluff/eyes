@@ -1,23 +1,21 @@
 use nannou::prelude::*;
 // #[derive(Debug, PartialEq)]
 
-pub struct Connection<'a> {
-    port_name: &'a str,
+pub struct Connection {
+    port_name: String,
     port: Option<SerialPort>,
     connected: bool,
     print_activity: bool,
 }
 use serial2::SerialPort;
 
-use crate::PORT;
-
-impl Connection<'_> {
-    pub const fn new(port_name: &str, print_activity: bool) -> Connection {
+impl Connection {
+    pub fn new(port_name: &str, print_activity: bool) -> Connection {
         Connection {
             port: None,
             connected: false,
             print_activity,
-            port_name,
+            port_name: port_name.to_owned(),
         }
     }
 
@@ -28,12 +26,10 @@ impl Connection<'_> {
     }
 
     pub fn write(&mut self, mut vec: Vec<u8>) {
-        unsafe {
-            PORT.open_port();
-        }
+        self.open_port();
+
         if let Some(port) = &self.port {
             port.write(&vec);
-        } else {
         }
     }
 
