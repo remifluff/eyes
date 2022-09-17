@@ -111,7 +111,7 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     if model.vision_timer.check(t) {
         unsafe {
             model.vision.update_faces(app);
-            model.vision2.update_faces(app);
+            // model.vision2.update_faces(app);
         }
     }
 
@@ -122,7 +122,7 @@ fn update(app: &App, model: &mut Model, _update: Update) {
         model.eye.draw(&draw);
         screen.render(app);
         screen.send_to_screen(app);
-        screen.draw_to_frame(app);
+        // screen.draw_to_frame(app);
     }
 }
 
@@ -137,19 +137,17 @@ fn view(app: &App, model: &Model, frame: Frame) {
     // draw.texture(&m.screen.fbo.texture).w_h(600.0, 600.0);
     // draw.texture(&m.screen.fbo.texture).w_h(20.0, 20.0);
 
-    for screen in &model.screen {
-        screen.draw_to_frame(app);
-    }
-
-    let offset = vec2(100.0, 100.0);
+    let offset = vec2(0.0, 0.0);
     let offset2 = vec2(-100.0, -100.0);
 
     model.vision.draw_camera(&draw, offset);
     model.vision.draw_face(&draw, win, offset);
 
-    model.vision2.draw_camera(&draw, offset2);
-    model.vision2.draw_face(&draw, win, offset2);
-
+    // model.vision2.draw_camera(&draw, offset2);
+    // model.vision2.draw_face(&draw, win, offset2);
+    for screen in &model.screen {
+        screen.draw_to_frame(&draw);
+    }
     draw.to_frame(app, &frame).unwrap();
 }
 

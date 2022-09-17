@@ -27,8 +27,8 @@ impl Screen {
         self.fbo.render(a)
     }
 
-    pub fn draw_to_frame(&self, a: &App) {
-        a.draw().texture(&self.fbo.texture).w_h(20.0, 20.0);
+    pub fn draw_to_frame(&self, draw: &Draw) {
+        draw.texture(&self.fbo.texture).w_h(200.0, 200.0);
         // .xy(self.position);
     }
 
