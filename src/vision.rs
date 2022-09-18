@@ -2,13 +2,13 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::{scopae_screen, Connection, Model};
+use crate::{scraen, Connection, Model};
 use image::{GenericImageView, ImageBuffer, Rgb};
 use nannou::draw::primitive::rect;
 use nannou::image::{DynamicImage, GrayImage};
 use nannou::lyon::geom::euclid::point2;
 use nannou::lyon::math::Point;
-use nannou::prelude::*;
+use nannou::{frame, prelude::*};
 use nokhwa::{Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use rustface::{Detector, FaceInfo, ImageData};
 use std::sync::mpsc::{self, channel, Receiver, Sender};
@@ -22,10 +22,14 @@ enum Frame {
     Unprocessd(DynamicImage),
     Processed(DynamicImage),
 }
-pub struct Vision {
-    camera: ThreadedCamera,
-    image: Frame,
+
+pub struct Cam {
+    backend: Camera,
+    frame: Frame,
     texture: Option<Texture>,
+}
+pub struct Vision {
+    cameras: [Arc<Mutex<Cam>>; 1],
 
     detector: Arc<Mutex<AsyncDetector>>,
 
@@ -37,24 +41,24 @@ pub struct Vision {
 }
 
 impl Vision {
-    pub fn new(app: &App, webcam_number: usize) -> Vision {
+    pub fn new(app: &App, face_cam: usize, street_cam: usize) -> Vision {
         // let image = image::open("model/faces.jpg").unwrap();
         let (w, h) = CAMERA_WH;
 
         let mut wh = Point2::new(w, h);
         let format = CameraFormat::new_from(w as u32, h as u32, FrameFormat::MJPEG, 30);
 
-        let camera = ThreadedCamera::new(webcam_number, Some(format)).unwrap();
+        let face_cam = Arc::new(Mutex::new(Cam {
+            backend: Camera::new(face_cam, Some(format)).unwrap(),
+            frame: Frame::Empty(),
+            texture: None,
+        }));
 
-        // if let Ok(mut c) = , // format
-        // ) {
-        //     Some(c)
-        // } else {
-        //     // wh = vec2(dim.0 as f32, dim.1 as f32);
-        //     None
-        // };
-        // Some(Texture::from_image::<&App>(app, &image));
-        // let texture =
+        let street_cam = Arc::new(Mutex::new(Cam {
+            backend: Camera::new(street_cam, Some(format)).unwrap(),
+            frame: Frame::Empty(),
+            texture: None,
+        }));
 
         let mut detector_raw = rustface::create_detector(MODEL_PATH).unwrap();
 
@@ -68,9 +72,9 @@ impl Vision {
         };
 
         Vision {
-            camera,
-            image: Frame::Empty(),
-            texture: None,
+            // cameras: [face_cam, street_cam],
+            cameras: [face_cam],
+
             detector: Arc::new(Mutex::new(detector)),
             faces: Arc::new(Mutex::new(Vec::new())),
             downscale_factor: 1.0,
@@ -79,54 +83,83 @@ impl Vision {
             wh,
         }
     }
+
     pub fn initialize_camera(&mut self) {
-        self.camera.open_stream(callback);
-    }
-
-    pub fn update_faces(&mut self) {
-        if let Frame::Unprocessd(image) = &self.image {
-            let img = image.clone();
-
-            let detector = Arc::clone(&self.detector);
-            let faces = Arc::clone(&self.faces);
-
-            self.image = Frame::Processed(img.to_owned());
-
-            let handle = thread::spawn(move || {
-                if let Ok(mut dectector) = detector.lock() {
-                    *faces.lock().unwrap() = dectector.detect(&img);
-                }
-            });
-        };
-    }
-    pub fn update_camera(&mut self, app: &App, screen: Rect) {
-        self.scale_factor = screen.wh() / self.wh;
-        self.scale_factor = Point2::from([self.scale_factor.max_element(); 2]);
-
-        if let Ok(img) = &mut self.camera.poll_frame() {
-            let immmm = DynamicImage::ImageRgb8(img.clone());
-            self.texture = Some(Texture::from_image::<&App>(app, &immmm));
-
-            self.image = Frame::Unprocessd(immmm.clone());
+        for cam in &self.cameras {
+            if let Ok(cam) = &mut cam.lock() {
+                cam.backend.open_stream().unwrap();
+            }
         }
     }
 
-    pub fn draw_camera(&self, draw: &Draw, offset: Point2) -> Option<()> {
-        draw.texture(&self.texture.as_ref()?)
-            .wh(self.wh * self.scale_factor * vec2(-1.0, 1.0))
-            .xy(vec2(0.0, 0.0) + offset);
+    pub fn update_faces(&mut self) {
+        if let Ok(cam) = &mut self.cameras[0].try_lock() {
+            if let Frame::Unprocessd(image) = &cam.frame {
+                let img = image.clone();
 
-        Some(())
+                let detector = Arc::clone(&self.detector);
+                let faces = Arc::clone(&self.faces);
+
+                cam.frame = Frame::Processed(img.to_owned());
+
+                let handle = thread::spawn(move || {
+                    if let Ok(mut dectector) = detector.lock() {
+                        *faces.lock().unwrap() = dectector.detect(&img);
+                    }
+                });
+            };
+        }
     }
+
+    pub fn update_camera_drawboxes(&mut self, screen: Rect) {
+        self.scale_factor = screen.wh() / self.wh;
+        self.scale_factor = Point2::from([self.scale_factor.min_element(); 2]);
+    }
+
+    pub fn render_texture(&mut self, app: &App) {
+        for cam in &self.cameras {
+            if let Ok(cam) = &mut cam.try_lock() {
+                if let Frame::Unprocessd(image) = &cam.frame {
+                    cam.texture = Some(Texture::from_image::<&App>(app, &image));
+                }
+            }
+        }
+    }
+
+    pub fn update_camera(&mut self, app: &App) {
+        let cam_ref = [Arc::clone(&self.cameras[0]), Arc::clone(&self.cameras[0])];
+
+        let handle = thread::spawn(move || {
+            for cam in cam_ref {
+                if let Ok(cam) = &mut cam.lock() {
+                    //spawn thread and iterate through cameras captruing frames
+                    if let Ok(captured_buffer) = cam.backend.frame() {
+                        cam.frame = Frame::Unprocessd(
+                            DynamicImage::ImageRgb8(captured_buffer.clone()).clone(),
+                        );
+                    }
+                }
+            }
+        }); //finish frames
+    }
+
+    pub fn draw_camera(&self, draw: &Draw, offset: Point2) {
+        for cam in &self.cameras {
+            if let Ok(cam) = &mut cam.lock() {
+                if let Some(texture) = &cam.texture {
+                    draw.texture(texture)
+                        .wh(self.wh * self.scale_factor * vec2(-1.0, 1.0))
+                        .xy(vec2(0.0, 0.0) + offset);
+                }
+            }
+        }
+    }
+
     pub fn draw_face(&self, draw: &Draw, screen: Rect, offset: Point2) {
         if let Ok(faces) = self.faces.lock() {
             let offset_pos = self.wh;
 
             for face in faces.iter() {
-                // let xy = (face.xy() + face.wh() * 0.5 - self.wh * 0.5)
-                //     * vec2(1.0, -1.0)
-                //     * self.scale_factor;
-
                 draw.rect()
                     .wh(face.wh() * self.scale_factor)
                     .xy(face.xy() * self.scale_factor + offset)
@@ -134,19 +167,6 @@ impl Vision {
             }
         }
     }
-}
-
-fn callback(image: nannou::image::ImageBuffer<Rgb<u8>, Vec<u8>>) {
-
-    // println!("{}x{} {}", image.width(), image.height(), image.len());
-}
-
-pub fn update_number(counter: Arc<Mutex<i32>>) {
-    let handle = thread::spawn(move || {
-        let mut num = counter.lock().unwrap();
-
-        *num += 1;
-    });
 }
 
 pub struct AsyncDetector {
@@ -187,21 +207,34 @@ pub fn update_faces(
         if let Ok(mut dectector) = detector.lock() {
             *faces.lock().unwrap() = dectector.detect(&m);
         }
-
-        // // faces
     });
 }
 
-// fn rect_from_faceInfo(face: &FaceInfo) -> Rect {
-//     let bbox = face.bbox();
-//     let (mut x, mut y, mut w, mut h) = (
-//         bbox.x() as f32,
-//         bbox.y() as f32,
-//         bbox.width() as f32,
-//         bbox.height() as f32,
-//     );
-
-//     // x = -(x - middle) + middle;
-//     // y = -(y - middle) + middle;
-//     Rect::from_x_y_w_h(x, y, w, h)
+//             *self.faces.lock().unwrap() = dectector.detect(&frame);
+//         }
+//     });
 // }
+
+// pub fn update_number(counter: Arc<Mutex<i32>>) {
+//     let handle = thread::spawn(move || {
+//         let mut num = counter.lock().unwrap();
+
+//         *num += 1;
+//     });
+// }
+
+// println!("{}x{} {}", image.width(), image.height(), image.len());
+
+// fn callback(image: nannou::image::ImageBuffer<Rgb<u8>, Vec<u8>>) {
+
+// pub fn update_detector(&mut self, app: &App) {
+//     let frame = Arc::clone(&self.cameras[0].frame);
+
+//     let detector = Arc::clone(&self.detector);
+//     let faces = Arc::clone(&self.faces);
+
+//     let handle = thread::spawn(move || {
+
+//         *self.faces.lock().unwrap() = dectector.detect(&frame);
+
+//         if let Ok(mut dectector) = self.detector.lock() {

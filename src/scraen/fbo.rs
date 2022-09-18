@@ -37,11 +37,6 @@ impl Fbo {
         // // Create our custom texture.
         let sample_count = window.msaa_samples();
 
-        // TextureResizer
-        // let texture_size = [
-        //     u32::from_f32(dimensions.x).unwrap(),
-        //     u32::from_f32(dimensions.y).unwrap(),
-        // ];
         let img = DynamicImage::new_rgb8(resolution.0, resolution.1);
         let image_capture = Arc::new(Mutex::new(img));
 
@@ -62,7 +57,6 @@ impl Fbo {
             texture_capturer,
             image_buffer: image_capture,
             pixel_count: resolution.0 * resolution.1,
-            // texture_reshaper,
         }
     }
 
