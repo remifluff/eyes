@@ -35,6 +35,8 @@ pub struct Scraen {
     fbo_rect: Rect,
     draw_rect: Rect,
     target: Vec2,
+
+    blink_ease: EaseBlink,
 }
 
 impl Scraen {
@@ -75,7 +77,7 @@ impl Scraen {
 
             eye_open_percent: (0.1),
 
-            eye_r: fbo_rect.h() / 2.0,
+            eye_r: fbo_rect.h() / 4.0,
             screen_center: vec2(0.0, 0.0),
             eye_xy: vec2(0.0, 0.0),
 
@@ -85,13 +87,15 @@ impl Scraen {
             eye_rt: vec2(0.0, 0.0),
 
             target: vec2(0.0, 0.0),
+
+            blink_ease: EaseBlink::new(1.0),
         }
     }
 
     pub fn update(&mut self, app: &App, target: Point2, time: f32, window: Rect) {
         let smooth = (self.target - target);
 
-        self.target = self.target - smooth * 0.1;
+        self.target = self.target - smooth * 0.6;
         let target = self.target;
         let eye = self.draw_rect.xy();
 
@@ -108,10 +112,13 @@ impl Scraen {
         // * self.fbo_rect.wh()
 
         self.eye_rt = vec2(dist, angle);
+        self.eye_xy = Scraen::xy_from_rt(self.eye_rt);
 
         // self.eye_xy = self.window_transform.inverse().transform_point2(target);
-
-        // self.update_openess(time);
+        if random_range(0, 100) > 90 {
+            self.blink_ease.start_ease()
+        }
+        self.blink_ease.update(time);
     }
     pub fn angle(a: Point2, b: Point2) -> f32 {
         (a - b).normalize().angle()
@@ -129,14 +136,15 @@ impl Scraen {
     pub fn draw_eye(&self) {
         let draw = &self.fbo.draw();
         draw.background().color(BLACK);
-        let rect_height = self.eye_r * self.eye_open_percent;
+        let rect_height = self.eye_r * self.blink_ease.val;
 
         let rect_wh = vec2(self.eye_r * 2.0, rect_height);
         let rect_xy = vec2(0.0, self.eye_r - (rect_height / 2.0));
 
-        let xy = Scraen::xy_from_rt(self.eye_rt);
-
-        draw.ellipse().xy(xy).radius(self.eye_r).color(WHITE);
+        draw.ellipse()
+            .xy(self.eye_xy)
+            .radius(self.eye_r)
+            .color(WHITE);
 
         draw.rect()
             .xy(self.eye_xy - rect_xy)
@@ -147,12 +155,6 @@ impl Scraen {
             .xy(self.eye_xy + rect_xy)
             .wh(rect_wh)
             .color(BLACK);
-    }
-
-    pub fn update_openess(&mut self, percent: f32) {
-        // percent.blink_ease(5.0);
-        // print!("{}", percent);
-        // self.eye_open_percent = percent.blink_ease(5.0);
     }
 
     pub fn render_texture(&mut self, app: &App) {
@@ -214,14 +216,42 @@ impl Scraen {
         }
     }
 }
-trait EaseExt {
-    fn blink_ease(&self, d: f32) -> f32 {
-        0.0
+// trait EaseExt {
+//     fn blink_ease(&self, d: f32) -> f32 {
+//         0.0
+//     }
+// }
+struct EaseBlink {
+    val: f32,
+    time: f32,
+    last_blink: f32,
+    duration: f32,
+    blink_in_progress: bool,
+}
+
+impl EaseBlink {
+    fn new(duration: f32) -> EaseBlink {
+        EaseBlink {
+            val: 0.0,
+            time: 0.0,
+            last_blink: 0.0,
+            duration,
+            blink_in_progress: false,
+        }
+    }
+    fn update(&mut self, time: f32) {
+        let t = time % (self.duration * 2.0);
+        self.val = ease::sine::ease_in_out(t, 0.0, 1.0, self.duration);
+    }
+
+    fn start_ease(&mut self) {
+        self.blink_in_progress = true;
+        // self.val = 0.0;
     }
 }
-impl EaseExt for f32 {
-    fn blink_ease(&self, d: f32) -> f32 {
-        let t = *self % (d * 2.0);
-        ease::sine::ease_in_out(t, 0.0, 1.0, d)
-    }
-}
+// impl EaseExt for f32 {
+//     fn blink_ease(&self, d: f32) -> f32 {
+//         let t = *self % (d * 2.0);
+//         ease::sine::ease_in_out(t, 0.0, 1.0, d)
+//     }
+// }
