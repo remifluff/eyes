@@ -88,7 +88,7 @@ impl Scraen {
     pub fn update(&mut self, app: &App, target: Point2, time: f32, window: Rect) {
         let eye = self.draw_rect.xy();
 
-        let dist = eye.distance(target);
+        let dist = eye.distance(target) / 10.0;
 
         let angle = Scraen::angle(target, eye);
 
