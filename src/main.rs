@@ -138,6 +138,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
     model.vision.update_camera(app);
     model.vision.update_faces();
+    let win = app.window_rect();
 
     // model.port.write(vec![255]);
     // for screen in &mut model.scraens {
