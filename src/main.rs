@@ -116,13 +116,14 @@ fn model(app: &App) -> Model {
         screen.push(Scraen::new(app, scraen_dim));
     }
 
-    let mut vision = Vision::new(app, 0, 2);
+    let mut vision = Vision::new(app, 0);
+    // let mut vision = Vision::new(app, 0, 2);
 
-    vision.initialize_camera();
+    // vision.initialize_camera();
 
     let win = app.window_rect();
 
-    vision.update_camera(app);
+    vision.update_camera(app, win);
 
     Model {
         scraens: screen,
@@ -136,20 +137,22 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let t = app.time;
     let win = app.window_rect();
 
-    model.vision.update_camera(app);
+    model.vision.update_camera(app, win);
     model.vision.update_faces();
     let win = app.window_rect();
 
-    // model.port.write(vec![255]);
-    // for screen in &mut model.scraens {
-    //     screen.update(&app, app.mouse.position(), t, win);
-    //     screen.draw_eye();
-    //     screen.render_texture(&app);
-    //     if let Some(buf) = screen.serial_packet() {
-    //         model.port.write(buf);
-    //     }
-    // }
-    // model.port.write(vec![254]);
+    let target = model.vision.biggest_face.xy();
+
+    model.port.write(vec![255]);
+    for screen in &mut model.scraens {
+        screen.update(&app, target, t, win);
+        screen.draw_eye();
+        screen.render_texture(&app);
+        if let Some(buf) = screen.serial_packet() {
+            model.port.write(buf);
+        }
+    }
+    model.port.write(vec![254]);
 }
 
 fn view(app: &App, model: &Model, frame: Frame) {
@@ -164,8 +167,8 @@ fn view(app: &App, model: &Model, frame: Frame) {
     model.vision.draw_camera(&draw, offset);
     model.vision.draw_face(&draw, win, offset);
 
-    // for screen in &model.scraens {
-    //     screen.draw_to_frame(&draw);
-    // }
+    for screen in &model.scraens {
+        screen.draw_to_frame(&draw);
+    }
     draw.to_frame(app, &frame).unwrap();
 }

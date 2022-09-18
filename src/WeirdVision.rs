@@ -1,12 +1,13 @@
+use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::{Connection, Model};
+use crate::{scopae_screen, Connection, Model};
 use image::{GenericImageView, ImageBuffer, Rgb};
 use nannou::draw::primitive::rect;
 use nannou::image::{DynamicImage, GrayImage};
 use nannou::lyon::geom::euclid::point2;
-use nannou::lyon::math::{rect, Point};
+use nannou::lyon::math::Point;
 use nannou::prelude::*;
 use nokhwa::{Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use rustface::{Detector, FaceInfo, ImageData};
@@ -16,10 +17,15 @@ use wgpu::{TextueSnapshot, Texture};
 const MODEL_PATH: &str = "model/seeta_fd_frontal_v1.0.bin";
 const CAMERA_WH: (f32, f32) = (320.0, 240.0);
 
+enum Frame {
+    Empty(),
+    Unprocessd(DynamicImage),
+    Processed(DynamicImage),
+}
 pub struct Vision {
-    camera: Option<ThreadedCamera>,
-    image: DynamicImage,
-    texture: Texture,
+    camera: ThreadedCamera,
+    image: Frame,
+    texture: Option<Texture>,
 
     detector: Arc<Mutex<AsyncDetector>>,
 
@@ -28,35 +34,27 @@ pub struct Vision {
 
     scale_factor: Point2,
     wh: Point2,
-
-    pub biggest_face: Rect,
 }
 
 impl Vision {
     pub fn new(app: &App, webcam_number: usize) -> Vision {
-        let image = image::open("model/faces.jpg").unwrap();
+        // let image = image::open("model/faces.jpg").unwrap();
         let (w, h) = CAMERA_WH;
 
         let mut wh = Point2::new(w, h);
+        let format = CameraFormat::new_from(w as u32, h as u32, FrameFormat::MJPEG, 30);
 
-        let camera = if let Ok(mut c) = ThreadedCamera::new(
-            webcam_number,
-            Some(CameraFormat::new_from(
-                w as u32,
-                h as u32,
-                FrameFormat::MJPEG,
-                30,
-            )), // format
-        ) {
-            c.open_stream(callback);
-            Some(c)
-        } else {
-            let dim = image.dimensions();
-            wh = vec2(dim.0 as f32, dim.1 as f32);
-            None
-        };
+        let camera = ThreadedCamera::new(webcam_number, Some(format)).unwrap();
 
-        let texture = Texture::from_image::<&App>(app, &image);
+        // if let Ok(mut c) = , // format
+        // ) {
+        //     Some(c)
+        // } else {
+        //     // wh = vec2(dim.0 as f32, dim.1 as f32);
+        //     None
+        // };
+        // Some(Texture::from_image::<&App>(app, &image));
+        // let texture =
 
         let mut detector_raw = rustface::create_detector(MODEL_PATH).unwrap();
 
@@ -70,67 +68,56 @@ impl Vision {
         };
 
         Vision {
-            image,
-            texture,
             camera,
-            downscale_factor: 1.0,
+            image: Frame::Empty(),
+            texture: None,
             detector: Arc::new(Mutex::new(detector)),
             faces: Arc::new(Mutex::new(Vec::new())),
+            downscale_factor: 1.0,
 
             scale_factor: Point2::new(0.0, 0.0),
             wh,
-
-            biggest_face: Rect::from_x_y_w_h(0.0, 0.0, 0.0, 0.0),
         }
     }
-    pub fn initialize(&self) {}
+    pub fn initialize_camera(&mut self) {
+        self.camera.open_stream(callback);
+    }
 
     pub fn update_faces(&mut self) {
-        self.get_target();
-        let detector = Arc::clone(&self.detector);
-        let faces = Arc::clone(&self.faces);
-        let image = &self.image;
-        let m = image.clone();
+        if let Frame::Unprocessd(image) = &self.image {
+            let img = image.clone();
 
-        let handle = thread::spawn(move || {
-            if let Ok(mut dectector) = detector.lock() {
-                *faces.lock().unwrap() = dectector.detect(&m);
-            }
-        });
+            let detector = Arc::clone(&self.detector);
+            let faces = Arc::clone(&self.faces);
+
+            self.image = Frame::Processed(img.to_owned());
+
+            let handle = thread::spawn(move || {
+                if let Ok(mut dectector) = detector.lock() {
+                    *faces.lock().unwrap() = dectector.detect(&img);
+                }
+            });
+        };
     }
-    pub fn get_target(&mut self) -> Option<()> {
-        if let Ok(faces) = self.faces.lock() {
-            let biggest_face = faces
-                .iter()
-                .min_by(|a, b| a.h().partial_cmp(&b.h()).unwrap())?;
-
-            self.biggest_face = *biggest_face;
-        }
-        Some(())
-    }
-
     pub fn update_camera(&mut self, app: &App, screen: Rect) {
         self.scale_factor = screen.wh() / self.wh;
         self.scale_factor = Point2::from([self.scale_factor.max_element(); 2]);
 
-        if let Some(cam) = &mut self.camera {
-            if let Ok(img) = &mut cam.poll_frame() {
-                let (thumb_w, thumb_h) = (
-                    (self.wh.x * self.downscale_factor) as u32,
-                    (self.wh.y * self.downscale_factor) as u32,
-                );
-                self.image = DynamicImage::ImageRgb8(img.clone()).thumbnail(thumb_w, thumb_h);
-                self.texture = Texture::from_image::<&App>(app, &self.image);
-            };
+        if let Ok(img) = &mut self.camera.poll_frame() {
+            let immmm = DynamicImage::ImageRgb8(img.clone());
+            self.texture = Some(Texture::from_image::<&App>(app, &immmm));
+
+            self.image = Frame::Unprocessd(immmm.clone());
         }
     }
 
-    pub fn draw_camera(&self, draw: &Draw, offset: Point2) {
-        draw.texture(&self.texture)
+    pub fn draw_camera(&self, draw: &Draw, offset: Point2) -> Option<()> {
+        draw.texture(&self.texture.as_ref()?)
             .wh(self.wh * self.scale_factor * vec2(-1.0, 1.0))
             .xy(vec2(0.0, 0.0) + offset);
-    }
 
+        Some(())
+    }
     pub fn draw_face(&self, draw: &Draw, screen: Rect, offset: Point2) {
         if let Ok(faces) = self.faces.lock() {
             let offset_pos = self.wh;

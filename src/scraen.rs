@@ -34,6 +34,7 @@ pub struct Scraen {
 
     fbo_rect: Rect,
     draw_rect: Rect,
+    target: Vec2,
 }
 
 impl Scraen {
@@ -74,7 +75,7 @@ impl Scraen {
 
             eye_open_percent: (0.1),
 
-            eye_r: (30.0),
+            eye_r: fbo_rect.h() / 2.0,
             screen_center: vec2(0.0, 0.0),
             eye_xy: vec2(0.0, 0.0),
 
@@ -82,13 +83,19 @@ impl Scraen {
             draw_rect,
 
             eye_rt: vec2(0.0, 0.0),
+
+            target: vec2(0.0, 0.0),
         }
     }
 
     pub fn update(&mut self, app: &App, target: Point2, time: f32, window: Rect) {
+        let smooth = (self.target - target);
+
+        self.target = self.target - smooth * 0.1;
+        let target = self.target;
         let eye = self.draw_rect.xy();
 
-        let dist = eye.distance(target) / 10.0;
+        let dist = eye.distance(target) / 2.0;
 
         let angle = Scraen::angle(target, eye);
 
