@@ -88,6 +88,9 @@ pub struct Model {
     // vision2: Vision,
     ui: UI,
     port: Connection,
+
+    face_cam_rect: Rect,
+    street_cam_rect: Rect,
 }
 
 fn model(app: &App) -> Model {
@@ -99,6 +102,10 @@ fn model(app: &App) -> Model {
         .unwrap();
     let window = app.window(window_id).unwrap();
 
+    let win = app.window_rect();
+    let face_cam_rect = Rect::from_x_y_w_h(-WIDTH / 4.0, 0.0, WIDTH / 2.0, HEIGHT / 2.0);
+    let street_cam_rect = Rect::from_x_y_w_h(WIDTH / 4.0, 0.0, WIDTH / 2.0, HEIGHT / 2.0);
+
     let mut port = Connection::new(PORT_NAME, false);
     port.open_port();
     Connection::print_avaliable_ports();
@@ -109,35 +116,32 @@ fn model(app: &App) -> Model {
 
     let rez: (u32, u32) = (12, 12);
     let mut screen = Vec::new();
-    let rect = Rect::from_x_y_w_h(30.0, 30.0, 200.0, 200.0);
-    let rect2 = Rect::from_x_y_w_h(-50.0, -50.0, 20.0, 50.0);
 
     for scraen_dim in SCRAENS {
         screen.push(Scraen::new(app, scraen_dim));
     }
 
-    let mut vision = Vision::new(app, 0);
+    let mut vision = Vision::new(app, [(2, face_cam_rect), (0, street_cam_rect)]);
     // let mut vision = Vision::new(app, 0, 2);
 
     // vision.initialize_camera();
 
-    let win = app.window_rect();
-
-    vision.update_camera(app, win);
+    vision.update_camera(app, face_cam_rect);
 
     Model {
         scraens: screen,
         vision,
         ui: UI::new(&window),
         port,
+        face_cam_rect,
+        street_cam_rect,
     }
 }
 
 fn update(app: &App, model: &mut Model, update: Update) {
     let t = app.time;
-    let win = app.window_rect();
 
-    model.vision.update_camera(app, win);
+    model.vision.update_camera(app, model.face_cam_rect);
     model.vision.update_faces();
     let win = app.window_rect();
 
@@ -156,8 +160,6 @@ fn update(app: &App, model: &mut Model, update: Update) {
 }
 
 fn view(app: &App, model: &Model, frame: Frame) {
-    let win = app.window_rect();
-
     let draw = app.draw();
 
     draw.background().color(WHITE);
@@ -165,7 +167,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
     let offset = vec2(0.0, 0.0);
 
     model.vision.draw_camera(&draw, offset);
-    model.vision.draw_face(&draw, win, offset);
+    model.vision.draw_face(&draw, model.face_cam_rect, offset);
 
     for screen in &model.scraens {
         screen.draw_to_frame(&draw);
