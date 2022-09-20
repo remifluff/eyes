@@ -36,6 +36,8 @@ pub struct Vision {
     pub biggest_face: Rect,
 
     ping_pong: bool,
+    camera_space: Rect,
+    camspace_to_screenspace: Affine2,
 }
 struct Cam {
     backend: ThreadedCamera,
@@ -73,7 +75,7 @@ impl Vision {
         let mut detector_raw = rustface::create_detector(MODEL_PATH).unwrap();
 
         detector_raw.set_min_face_size(40);
-        detector_raw.set_score_thresh(2.0);
+        detector_raw.set_score_thresh(0.70);
         detector_raw.set_pyramid_scale_factor(0.1);
         detector_raw.set_slide_window_step(4, 4);
 
@@ -81,9 +83,16 @@ impl Vision {
             inner: detector_raw,
         };
 
-        Vision {
-            webcams,
+        let camera_space = Rect::from_x_y_w_h(0.0, 0.0, -w, h);
 
+        Vision {
+            camspace_to_screenspace: Affine2::from_scale_angle_translation(
+                webcams[1].draw_rect.wh() / camera_space.wh(),
+                0.0,
+                webcams[1].draw_rect.xy(),
+            ),
+            webcams,
+            camera_space,
             detector: Arc::new(Mutex::new(detector)),
             faces: Arc::new(Mutex::new(Vec::new())),
 
@@ -112,7 +121,7 @@ impl Vision {
 
             if let Ok(img) = &mut cam.backend.poll_frame() {
                 let img = DynamicImage::ImageRgb8(img.clone());
-                cam.texture = Texture::from_image::<&App>(app, &img);
+                cam.texture = Texture::from_image::<&App>(app, &img.rotate270());
                 cam.frame = Frame::Unprocessd(img);
             }
         }
@@ -121,7 +130,7 @@ impl Vision {
     pub fn draw_camera(&self, draw: &Draw, offset: Point2) {
         for cam in &self.webcams {
             draw.texture(&cam.texture)
-                .wh(cam.draw_rect.wh())
+                .wh(cam.draw_rect.wh() * vec2(-1.0, 1.0))
                 .xy(cam.draw_rect.xy());
         }
 
@@ -160,18 +169,20 @@ impl Vision {
         Some(())
     }
 
-    pub fn draw_face(&self, draw: &Draw, screen: Rect, offset: Point2) 
+    pub fn draw_face(&self, draw: &Draw, screen: Rect, offset: Point2) {
         if let Ok(faces) = self.faces.lock() {
             let offset_pos = self.wh;
 
             for face in faces.iter() {
+                let t = self.camspace_to_screenspace;
+
                 // let xy = (face.xy() + face.wh() * 0.5 - self.wh * 0.5)
                 //     * vec2(1.0, -1.0)
                 //     * self.scale_factor;
 
                 draw.rect()
-                    .wh(face.wh() * self.scale_factor)
-                    .xy(face.xy() * self.scale_factor + offset)
+                    .wh(t.transform_point2(face.wh()))
+                    .xy(t.transform_point2(face.xy()))
                     .color(BLUE);
             }
         }

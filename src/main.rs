@@ -35,32 +35,31 @@ pub use serial2::SerialPort;
 // const PORT_NAME: &str = "/dev/ttyprintk";
 const PORT_NAME: &str = "/dev/ttyACM0";
 
-const WIDTH: f32 = 640.0 * 2.0;
-const HEIGHT: f32 = 360.0 * 2.0;
-
 use nannou::image::DynamicImage::ImageRgb8;
 use nannou_osc as osc;
 
+const SCRAEN_SCALE: f32 = 10.0 * SCALE;
+
 const SCRAENS: [ScraenDim; 4] = [
     ScraenDim {
-        rez: 12,
-        xy: (20.0, 20.0),
-        wh: 100.0,
+        rez: 4,
+        xy: (466.0, -123.0),
+        wh: (4.0, 4.0),
     },
     ScraenDim {
         rez: 16,
-        xy: (-40.0, -220.0),
-        wh: 300.0,
-    },
-    ScraenDim {
-        rez: 4,
-        xy: (100.0, -80.0),
-        wh: 100.0,
+        xy: (102.0, -212.0),
+        wh: (16.0, 16.0),
     },
     ScraenDim {
         rez: 8,
-        xy: (44., 302.),
-        wh: 200.0,
+        xy: (38.0, 92.0),
+        wh: (8.0, 8.0),
+    },
+    ScraenDim {
+        rez: 12,
+        xy: (453.0, 124.0),
+        wh: (12.0, 12.0),
     },
 ];
 
@@ -69,7 +68,7 @@ const OSC_PORT: u16 = 8338;
 pub struct ScraenDim {
     rez: u32,
     xy: (f32, f32),
-    wh: f32,
+    wh: (f32, f32),
 }
 
 pub struct Settings {
@@ -92,19 +91,40 @@ pub struct Model {
     face_cam_rect: Rect,
     street_cam_rect: Rect,
 }
+const SCALE: f32 = 2.5;
+
+const CAMERA_WH: (f32, f32) = (320.0, 240.0);
+const WIDTH: f32 = 240.0 * 2.0;
+const HEIGHT: f32 = 360.0 * 1.0;
+
+const SHRNK: f32 = 0.9;
 
 fn model(app: &App) -> Model {
     let window_id = app
         .new_window()
-        .size(WIDTH as u32, HEIGHT as u32)
+        .size((WIDTH * SCALE) as u32, (HEIGHT * SCALE) as u32)
         .view(view)
         .build()
         .unwrap();
     let window = app.window(window_id).unwrap();
 
-    let win = app.window_rect();
-    let face_cam_rect = Rect::from_x_y_w_h(-WIDTH / 4.0, 0.0, WIDTH / 2.0, HEIGHT / 2.0);
-    let street_cam_rect = Rect::from_x_y_w_h(WIDTH / 4.0, 0.0, WIDTH / 2.0, HEIGHT / 2.0);
+    let face_cam_rect = Rect::from_x_y_w_h(
+        -WIDTH / 4.0 * SCALE * SHRNK,
+        0.0,
+        CAMERA_WH.1 * SCALE * SHRNK,
+        CAMERA_WH.0 * SCALE * SHRNK,
+    );
+    let street_cam_rect = Rect::from_x_y_w_h(
+        WIDTH / 4.0 * SCALE * SHRNK,
+        0.0,
+        CAMERA_WH.1 * SCALE * SHRNK,
+        CAMERA_WH.0 * SCALE * SHRNK,
+    );
+
+    let mut screen = Vec::new();
+    for scraen_dim in SCRAENS {
+        screen.push(Scraen::new(app, scraen_dim));
+    }
 
     let mut port = Connection::new(PORT_NAME, false);
     port.open_port();
@@ -115,16 +135,8 @@ fn model(app: &App) -> Model {
     let vision_timer = Timer::start_new(app.time, 0.1);
 
     let rez: (u32, u32) = (12, 12);
-    let mut screen = Vec::new();
-
-    for scraen_dim in SCRAENS {
-        screen.push(Scraen::new(app, scraen_dim));
-    }
 
     let mut vision = Vision::new(app, [(2, face_cam_rect), (0, street_cam_rect)]);
-    // let mut vision = Vision::new(app, 0, 2);
-
-    // vision.initialize_camera();
 
     vision.update_camera(app, face_cam_rect);
 
@@ -146,6 +158,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
     let win = app.window_rect();
 
     let target = model.vision.biggest_face.xy();
+    let target = app.mouse.position();
 
     model.port.write(vec![255]);
     for screen in &mut model.scraens {
@@ -162,7 +175,7 @@ fn update(app: &App, model: &mut Model, update: Update) {
 fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
 
-    draw.background().color(WHITE);
+    draw.background().color(BLACK);
 
     let offset = vec2(0.0, 0.0);
 
@@ -172,5 +185,11 @@ fn view(app: &App, model: &Model, frame: Frame) {
     for screen in &model.scraens {
         screen.draw_to_frame(&draw);
     }
+    let target = app.mouse.position();
+    draw.text(format!("{}", target).as_str())
+        .color(WHITE)
+        .font_size(24)
+        .w_h(800.0, 10.0)
+        .x_y(0.0, -370.0);
     draw.to_frame(app, &frame).unwrap();
 }

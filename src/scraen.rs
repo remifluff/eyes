@@ -1,6 +1,6 @@
 use std::iter::Flatten;
 
-use crate::{Connection, Model, ScraenDim};
+use crate::{Connection, Model, ScraenDim, SCRAEN_SCALE};
 use image::{imageops::FilterType, math, DynamicImage, GenericImageView, Pixel};
 use nannou::{
     ease,
@@ -50,8 +50,8 @@ impl Scraen {
         let draw_rect = Rect::from_x_y_w_h(
             screen_dim.xy.0,
             screen_dim.xy.1,
-            screen_dim.wh,
-            screen_dim.wh,
+            screen_dim.wh.0 * SCRAEN_SCALE,
+            screen_dim.wh.1 * -SCRAEN_SCALE,
         );
         // let fbo_resolution = screen_dim.(w * 20, h * 20);
 
@@ -187,11 +187,13 @@ impl Scraen {
 
     pub fn serial_packet(&self) -> Option<Vec<u8>> {
         if let Ok(image) = self.fbo.image_buffer.try_lock() {
-            let small_img = image.resize_exact(
-                self.scraen_resolution.0,
-                self.scraen_resolution.1,
-                FilterType::Gaussian,
-            );
+            let small_img = image
+                .resize_exact(
+                    self.scraen_resolution.0,
+                    self.scraen_resolution.1,
+                    FilterType::Gaussian,
+                )
+                .rotate90();
 
             let mut itt = small_img
                 .clone()
