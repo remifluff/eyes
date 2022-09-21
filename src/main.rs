@@ -92,7 +92,7 @@ pub struct Settings {
 fn main() {
     nannou::app(model).update(update).run();
 }
-
+const SHOWDEBUG: bool = false;
 pub struct Model {
     scraens: Vec<Scraen>,
     vision: Vision,
@@ -204,8 +204,10 @@ fn view(app: &App, model: &Model, frame: Frame) {
     model.vision.draw_camera(&draw);
     model.vision.draw_face(&draw, model.face_cam_rect);
 
-    for screen in &model.scraens {
-        screen.draw_to_frame(&draw);
+    if SHOWDEBUG {
+        for screen in &model.scraens {
+            screen.draw_to_frame(&draw);
+        }
     }
 
     let target2 = app.mouse.position();
