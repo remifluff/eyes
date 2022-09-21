@@ -1,9 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
+use chrono::{TimeZone, Utc};
 use core::num;
-use std::time::Instant;
-use std::{os::unix::prelude::DirEntryExt, string, time::Duration};
-
 use nannou::draw;
 use nannou::draw::primitive::rect;
 use nannou::lyon::geom::euclid::SideOffsets2D;
@@ -14,8 +12,15 @@ use nannou_egui::egui::Slider;
 use nokhwa::{
     query, Camera, CameraFormat, FrameFormat, Resolution, ThreadedCamera,
 };
+use time::macros::{date, datetime};
+
 use osc::Message;
 use rustface::FaceInfo;
+use std::time::Instant;
+use std::time::{Duration, SystemTime};
+use std::{os::unix::prelude::DirEntryExt, string};
+use time::Weekday::Wednesday;
+use time::{Date, OffsetDateTime, PrimitiveDateTime, UtcOffset};
 use wgpu::Texture;
 
 pub mod connection;
@@ -33,6 +38,9 @@ use vision::Vision;
 
 mod timer;
 use timer::Timer;
+
+mod walk;
+use walk::Walk;
 
 pub use serial2::SerialPort;
 
@@ -95,6 +103,8 @@ pub struct Model {
     face_cam_rect: Rect,
     street_cam_rect: Rect,
     target: Vec2,
+    walk_x: Walk,
+    walk_y: Walk,
 }
 const SCALE: f32 = 2.5;
 
@@ -150,6 +160,8 @@ fn model(app: &App) -> Model {
         face_cam_rect,
         street_cam_rect,
         target: vec2(0.0, 0.0),
+        walk_x: Walk::new(43324),
+        walk_y: Walk::new(621034),
     }
 }
 
@@ -164,13 +176,20 @@ fn update(app: &App, model: &mut Model, _update: Update) {
         model.target = t;
     };
 
-    model.target = app.mouse.position();
+    // model.target = app.mouse.position();
+    let walk = vec2(model.walk_x.val(), model.walk_y.val())
+        - model.face_cam_rect.xy();
+    model.target = walk;
+
+    model.walk_x.update();
+    model.walk_y.update();
 
     model.port.write(vec![255]);
     for screen in &mut model.scraens {
         screen.draw_eye();
         screen.render_texture(&app);
-        screen.update(&app, model.target, time);
+
+        screen.update(&app, model.target, time.into());
         if let Some(buf) = screen.serial_packet() {
             model.port.write(buf);
         }
@@ -192,10 +211,25 @@ fn view(app: &App, model: &Model, frame: Frame) {
     let target2 = app.mouse.position();
     // let target = model.vision.biggest_face.xy();
 
+    use chrono;
+
+    fn main() {
+        println!("{:?}", chrono::offset::Local::now());
+        println!("{:?}", chrono::offset::Utc::now());
+    }
+
+    let dt = chrono::offset::Local::now();
+    dt.format("%Y-%m-%d %H:%M:%S");
+    // font::collection_from_file( model/Futura.ttc)
+    let walk = vec2(model.walk_x.val(), model.walk_y.val())
+        - model.face_cam_rect.xy();
+
+    draw.ellipse().xy(walk).radius(30.0).color(GREY);
+
     draw.text(
-        format!("face {}, mouse {}", model.target, target2).as_str(),
+        format!("local time: {}", dt.format("%H:%M:%S:%f")).as_str(),
     )
-    .color(BLACK)
+    .color(WHITE)
     .font_size(24)
     .w_h(800.0, 10.0)
     .x_y(0.0, -370.0);

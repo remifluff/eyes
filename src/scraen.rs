@@ -1,6 +1,7 @@
 use std::iter::Flatten;
 
 use crate::{Connection, Model, ScraenDim, SCRAEN_SCALE};
+use futures::io::Close;
 use image::{
     imageops::FilterType, math, DynamicImage, GenericImageView, Pixel,
 };
@@ -11,9 +12,16 @@ use nannou::{
     lyon::math::Point,
     prelude::*,
     prelude::*,
-    rand::seq::index,
+    rand::{seq::index, SeedableRng},
 };
+use randomwalk::generators::NormalGenerator;
 use wgpu::TextueSnapshot;
+
+use randomwalk::translators::{
+    ExponentialTranslator, LogNormalTranslator, UniformTranslator,
+};
+
+// normal distribution between 0 and 1
 
 pub mod fbo;
 use fbo::Fbo;
@@ -28,17 +36,19 @@ pub struct Scraen {
     scraen_resolution: (u32, u32),
     scraen_texture: wgpu::Texture,
 
+    blink: Blink,
+
     eye_open_percent: f32,
     eye_r: f32,
     eye_xy: Point2,
-    eye_rt: Point2,
 
     fbo_rect: Rect,
     draw_rect: Rect,
-    target: Vec2,
+    target_pos: Vec2,
 
-    blink_ease: EaseBlink,
     webcam_rect: Rect,
+    target_acc: Vec2,
+    target_vel: Vec2,
 }
 
 impl Scraen {
@@ -66,69 +76,59 @@ impl Scraen {
             Fbo::new(app, (fbo_resolution.0, fbo_resolution.1));
         let img = &DynamicImage::new_rgb8(params.rez, params.rez);
         let texture = wgpu::Texture::from_image(app, img);
+        let window_transform = Affine2::from_scale_angle_translation(
+            draw_rect.wh() / fbo_rect.wh(),
+            0.0,
+            draw_rect.xy(),
+        );
 
         Scraen {
             fbo: frame_buffer,
             fbo_resolution,
 
-            window_transform: Affine2::from_scale_angle_translation(
-                draw_rect.wh() / fbo_rect.wh(),
-                0.0,
-                draw_rect.xy(),
-            ),
+            window_transform,
 
             scraen_resolution,
             scraen_texture: texture,
 
             eye_open_percent: (0.1),
 
-            eye_r: fbo_rect.h() / 4.0,
-            eye_xy: vec2(0.0, 0.0),
-
             fbo_rect,
             draw_rect,
             webcam_rect,
 
-            eye_rt: vec2(0.0, 0.0),
+            eye_r: fbo_rect.h() / 4.0,
+            eye_xy: Vec2::splat(0.0),
+            target_pos: Vec2::splat(0.0),
+            target_vel: Vec2::splat(0.0),
+            target_acc: Vec2::splat(0.0),
 
-            target: vec2(0.0, 0.0),
-
-            blink_ease: EaseBlink::new(1.0),
+            blink: Blink::new(0.1, 0.2, 0.1, 100),
         }
     }
 
-    pub fn update(&mut self, app: &App, target: Point2, time: f32) {
-        self.target = self.update_target(target);
-        self.eye_xy = self.set_eye_position(self.target);
-        // if random_range(0, 100) > 90 {
-        //     self.blink_ease.start_ease()
-        // }
-        // self.blink_ease.update(time);
-    }
+    pub fn update(&mut self, app: &App, target: Point2, time: f64) {
+        self.blink.update(time);
 
-    pub fn update_target(&mut self, target: Point2) -> Point2 {
-        self.eye_xy =
-            self.window_transform.inverse().transform_point2(target);
-
-        let smooth = self.target - target;
-        self.target - smooth * 0.6
-    }
-
-    pub fn set_eye_position(&self, target: Point2) -> Point2 {
+        //smooth target eye motion with accselatation
+        let new_target_vel = self.target_pos - target;
+        self.target_acc = self.target_vel - new_target_vel;
+        self.target_pos = self.target_pos + self.target_acc * 0.09;
+        //turn target motion into rotation and distance from center
         let screen_center = self.draw_rect.xy();
-
-        let dist = screen_center.distance(target) / 2.0;
+        let dist = screen_center.distance(self.target_pos);
+        let percent = dist / self.webcam_rect.wh().max_element() * 2.0;
         let max_length = self.fbo_rect.wh().min_element() / 2.0;
-
-        let radius = max_length;
-        let theta = (target - screen_center).normalize().angle();
-        vec2(radius * theta.cos(), radius * theta.sin())
+        //calculate xy from radius and theta
+        let radius = max_length * percent;
+        let theta = (self.target_pos - screen_center).normalize().angle();
+        self.eye_xy = vec2(radius * theta.cos(), radius * theta.sin());
     }
 
     pub fn draw_eye(&self) {
         let draw = &self.fbo.draw();
         draw.background().color(BLACK);
-        let rect_height = self.eye_r * self.blink_ease.val;
+        let rect_height = self.eye_r * self.blink.val;
 
         let rect_wh = vec2(self.eye_r * 2.0, rect_height);
         let rect_xy = vec2(0.0, self.eye_r - (rect_height / 2.0));
@@ -189,41 +189,111 @@ impl Scraen {
                 )
                 .rotate90();
 
-            // let mut itt = small_img
-            //     .clone()
-            //     .as_rgba8()?
-            //     .enumerate_rows()
-            //     .flat_map(|(i, row)| {
-            //         let mut mapped_row: Vec<u8> = row
-            //             .map(|(x, y, pix)| {
-            //                 clamp(
-            //                     pix.to_luma().channels()[0],
-            //                     0u8,
-            //                     200u8,
-            //                 )
-            //             })
-            //             .collect();
-            //         if i % 2 == 0 {
-            //             mapped_row.reverse();
-            //         }
+            let mut itt = small_img
+                .clone()
+                .as_rgba8()?
+                .enumerate_rows()
+                .flat_map(|(i, row)| {
+                    let mut mapped_row: Vec<u8> = row
+                        .map(|(x, y, pix)| {
+                            clamp(pix.to_luma().channels()[0], 0u8, 200u8)
+                        })
+                        .collect();
+                    if i % 2 == 0 {
+                        mapped_row.reverse();
+                    }
 
-            //         mapped_row.push(0);
-            //         mapped_row
-            //     })
-            //     .collect::<Vec<u8>>();
-            // itt.pop();
-            // Some(itt)
-            None
+                    mapped_row.push(0);
+                    mapped_row
+                })
+                .collect::<Vec<u8>>();
+            itt.pop();
+            Some(itt)
         } else {
             None
         }
     }
 }
-// trait EaseExt {
-//     fn blink_ease(&self, d: f32) -> f32 {
-//         0.0
-//     }
-// }
+
+type StartTime = f64;
+enum State {
+    Closing(StartTime),
+    Closed(StartTime),
+    Opening(StartTime),
+    Dorment,
+}
+struct Blink {
+    state: State,
+    shutting_time: f64,
+    closed_time: f64,
+    opening_time: f64,
+    chance: u32,
+    val: f32,
+}
+
+impl Blink {
+    fn new(
+        shutting_time: f64,
+        closed_time: f64,
+        opening_time: f64,
+
+        chance: u32,
+    ) -> Blink {
+        Blink {
+            state: State::Dorment,
+            shutting_time,
+            closed_time,
+            opening_time,
+            chance,
+            val: 0.0,
+        }
+    }
+
+    fn update(&mut self, time: f64) {
+        self.val = match self.state {
+            State::Closing(start_time) => {
+                let t = time - start_time;
+                if t < self.shutting_time {
+                    ease::sine::ease_in(t, 0.0, 1.0, self.shutting_time)
+                        as f32
+                } else {
+                    self.state = State::Closed(time);
+                    1.0
+                }
+            }
+            State::Closed(start_time) => {
+                let t = time - start_time;
+                if t < self.closed_time {
+                    1.0
+                } else {
+                    self.state = State::Opening(time);
+                    1.0
+                }
+            }
+            State::Opening(start_time) => {
+                let t = time - start_time;
+                if t < self.opening_time {
+                    (1.0 - ease::sine::ease_out(
+                        t,
+                        0.0,
+                        1.0,
+                        self.opening_time,
+                    ) as f32)
+                } else {
+                    self.state = State::Dorment;
+                    0.0
+                }
+            }
+            State::Dorment => {
+                if random_range(0, self.chance) < 1 {
+                    self.state = State::Closing(time)
+                };
+                0.0
+            }
+        }
+    }
+}
+
 struct EaseBlink {
     val: f32,
     time: f32,
@@ -252,6 +322,7 @@ impl EaseBlink {
         // self.val = 0.0;
     }
 }
+
 // impl EaseExt for f32 {
 //     fn blink_ease(&self, d: f32) -> f32 {
 //         let t = *self % (d * 2.0);
