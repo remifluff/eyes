@@ -1,7 +1,9 @@
 use std::iter::Flatten;
 
 use crate::{Connection, Model, ScraenDim, SCRAEN_SCALE};
-use image::{imageops::FilterType, math, DynamicImage, GenericImageView, Pixel};
+use image::{
+    imageops::FilterType, math, DynamicImage, GenericImageView, Pixel,
+};
 use nannou::{
     ease,
     geom::rect,
@@ -16,7 +18,7 @@ use wgpu::TextueSnapshot;
 pub mod fbo;
 use fbo::Fbo;
 
-const UPSCALE_VAL: u32 = 20;
+const UPSCALE_VAL: u32 = 3;
 
 pub struct Scraen {
     pub fbo: Fbo,
@@ -28,7 +30,6 @@ pub struct Scraen {
 
     eye_open_percent: f32,
     eye_r: f32,
-    screen_center: Point2,
     eye_xy: Point2,
     eye_rt: Point2,
 
@@ -37,30 +38,34 @@ pub struct Scraen {
     target: Vec2,
 
     blink_ease: EaseBlink,
+    webcam_rect: Rect,
 }
 
 impl Scraen {
-    pub fn new(app: &App, screen_dim: ScraenDim) -> Scraen {
-        let scraen_resolution = (screen_dim.rez, screen_dim.rez);
-        let fbo_resolution = (screen_dim.rez * UPSCALE_VAL, screen_dim.rez * UPSCALE_VAL);
+    pub fn new(app: &App, params: ScraenDim, webcam_rect: Rect) -> Scraen {
+        let scraen_resolution = (params.rez, params.rez);
+        let fbo_resolution =
+            (params.rez * UPSCALE_VAL, params.rez * UPSCALE_VAL);
 
-        let fbo_rect =
-            Rect::from_x_y_w_h(0.0, 0.0, fbo_resolution.0 as f32, fbo_resolution.1 as f32);
+        let fbo_rect = Rect::from_x_y_w_h(
+            0.0,
+            0.0,
+            fbo_resolution.0 as f32,
+            fbo_resolution.1 as f32,
+        );
 
         let draw_rect = Rect::from_x_y_w_h(
-            screen_dim.xy.0,
-            screen_dim.xy.1,
-            screen_dim.wh.0 * SCRAEN_SCALE,
-            screen_dim.wh.1 * -SCRAEN_SCALE,
+            params.xy.0,
+            params.xy.1,
+            params.wh.0 * SCRAEN_SCALE,
+            params.wh.1 * -SCRAEN_SCALE,
         );
-        // let fbo_resolution = screen_dim.(w * 20, h * 20);
+        // let fbo_resolution = params.(w * 20, h * 20);
 
-        let frame_buffer = Fbo::new(app, (fbo_resolution.0, fbo_resolution.1));
-
-        let texture =
-            wgpu::Texture::from_image(app, &DynamicImage::new_rgb8(screen_dim.rez, screen_dim.rez));
-
-        // let fbo_rect = Rect::from_x_y_w_h(0.0, 0.0, 100.0, 100.0);
+        let frame_buffer =
+            Fbo::new(app, (fbo_resolution.0, fbo_resolution.1));
+        let img = &DynamicImage::new_rgb8(params.rez, params.rez);
+        let texture = wgpu::Texture::from_image(app, img);
 
         Scraen {
             fbo: frame_buffer,
@@ -78,11 +83,11 @@ impl Scraen {
             eye_open_percent: (0.1),
 
             eye_r: fbo_rect.h() / 4.0,
-            screen_center: vec2(0.0, 0.0),
             eye_xy: vec2(0.0, 0.0),
 
             fbo_rect,
             draw_rect,
+            webcam_rect,
 
             eye_rt: vec2(0.0, 0.0),
 
@@ -92,46 +97,32 @@ impl Scraen {
         }
     }
 
-    pub fn update(&mut self, app: &App, target: Point2, time: f32, window: Rect) {
-        let smooth = self.target - target;
-
-        self.target = self.target - smooth * 0.6;
-        let target = self.target;
-        self.eye_xy = self.window_transform.inverse().transform_point2(target);
-
-        // let eye = self.draw_rect.xy();
-
-        // let dist = eye.distance(target) / 2.0;
-
-        // let angle = Scraen::angle(target, eye);
-
-        // let transfrom = Affine2::from_scale_angle_translation(
-        //     window.wh() / self.draw_rect.wh(),
-        //     0.0,
-        //     self.draw_rect.xy(),
-        // );
-        // self.eye_xy = ;
-        // * self.fbo_rect.wh()
-
-        // self.eye_rt = vec2(30.0, angle);
-        // self.eye_xy = Scraen::xy_from_rt(self.eye_rt);
-
+    pub fn update(&mut self, app: &App, target: Point2, time: f32) {
+        self.target = self.update_target(target);
+        self.eye_xy = self.set_eye_position(self.target);
         // if random_range(0, 100) > 90 {
         //     self.blink_ease.start_ease()
         // }
         // self.blink_ease.update(time);
     }
-    pub fn angle(a: Point2, b: Point2) -> f32 {
-        (a - b).normalize().angle()
+
+    pub fn update_target(&mut self, target: Point2) -> Point2 {
+        self.eye_xy =
+            self.window_transform.inverse().transform_point2(target);
+
+        let smooth = self.target - target;
+        self.target - smooth * 0.6
     }
-    pub fn xy_from_rt(rt: Point2) -> Point2 {
-        let radius = rt.x;
-        let theta = rt.y;
 
-        let x = radius * theta.cos();
-        let y = radius * theta.sin();
+    pub fn set_eye_position(&self, target: Point2) -> Point2 {
+        let screen_center = self.draw_rect.xy();
 
-        vec2(x, y)
+        let dist = screen_center.distance(target) / 2.0;
+        let max_length = self.fbo_rect.wh().min_element() / 2.0;
+
+        let radius = max_length;
+        let theta = (target - screen_center).normalize().angle();
+        vec2(radius * theta.cos(), radius * theta.sin())
     }
 
     pub fn draw_eye(&self) {
@@ -168,7 +159,7 @@ impl Scraen {
                 &image.resize_exact(
                     self.scraen_resolution.0,
                     self.scraen_resolution.1,
-                    FilterType::Nearest,
+                    FilterType::Gaussian,
                 ),
             );
         }
@@ -180,6 +171,12 @@ impl Scraen {
         draw.texture(&self.scraen_texture)
             .xy(t.transform_point2(self.fbo_rect.xy()))
             .wh(t.transform_vector2(self.fbo_rect.wh()));
+
+        draw.line()
+            .start(self.draw_rect.xy())
+            .end(self.window_transform.transform_point2(self.eye_xy))
+            .color(GREY)
+            .color(GREY);
     }
 
     pub fn serial_packet(&self) -> Option<Vec<u8>> {
@@ -188,28 +185,35 @@ impl Scraen {
                 .resize_exact(
                     self.scraen_resolution.0,
                     self.scraen_resolution.1,
-                    FilterType::Gaussian,
+                    FilterType::Triangle,
                 )
                 .rotate90();
 
-            let mut itt = small_img
-                .clone()
-                .as_rgba8()?
-                .enumerate_rows()
-                .flat_map(|(i, row)| {
-                    let mut mapped_row: Vec<u8> = row
-                        .map(|(x, y, pix)| clamp(pix.to_luma().channels()[0], 0u8, 200u8))
-                        .collect();
-                    if i % 2 == 0 {
-                        mapped_row.reverse();
-                    }
+            // let mut itt = small_img
+            //     .clone()
+            //     .as_rgba8()?
+            //     .enumerate_rows()
+            //     .flat_map(|(i, row)| {
+            //         let mut mapped_row: Vec<u8> = row
+            //             .map(|(x, y, pix)| {
+            //                 clamp(
+            //                     pix.to_luma().channels()[0],
+            //                     0u8,
+            //                     200u8,
+            //                 )
+            //             })
+            //             .collect();
+            //         if i % 2 == 0 {
+            //             mapped_row.reverse();
+            //         }
 
-                    mapped_row.push(0);
-                    mapped_row
-                })
-                .collect::<Vec<u8>>();
-            itt.pop();
-            Some(itt)
+            //         mapped_row.push(0);
+            //         mapped_row
+            //     })
+            //     .collect::<Vec<u8>>();
+            // itt.pop();
+            // Some(itt)
+            None
         } else {
             None
         }

@@ -1,21 +1,21 @@
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::{option, thread};
 
-use crate::{Connection, Model, Settings};
+use crate::{Connection, Model, Settings, CAMERA_WH};
 use image::{GenericImageView, ImageBuffer, Rgb};
 use nannou::draw::primitive::rect;
 use nannou::image::{DynamicImage, GrayImage};
 use nannou::lyon::geom::euclid::point2;
 use nannou::lyon::math::{rect, Point};
 use nannou::prelude::*;
+use nannou_egui::egui_wgpu_backend::epi::backend;
 use nokhwa::{Camera, CameraFormat, FrameFormat, ThreadedCamera};
 use rustface::{Detector, FaceInfo, ImageData};
 use std::sync::mpsc::{self, channel, Receiver, Sender};
 use wgpu::{TextueSnapshot, Texture};
 
 const MODEL_PATH: &str = "model/seeta_fd_frontal_v1.0.bin";
-const CAMERA_WH: (u32, u32) = (320, 240);
 const CAMERA_WH_F32: (f32, f32) = (CAMERA_WH.0 as f32, CAMERA_WH.1 as f32);
 
 static mut CAMERA_READY: bool = false;
@@ -39,7 +39,7 @@ pub struct Vision {
     ping_pong: bool,
 }
 struct Cam {
-    backend: ThreadedCamera,
+    backend: Option<ThreadedCamera>,
     frame: Frame,
     texture: Texture,
     draw_rect: Rect,
@@ -48,16 +48,21 @@ struct Cam {
 }
 
 impl Vision {
-    pub fn new(app: &App, settings: [(usize, Rect); 2]) -> Vision {
+    pub fn new(app: &App, (w, h): (u32, u32), settings: [(usize, Rect); 2]) -> Vision {
+        let camera_wh = UVec2::new(w, h);
         let format = CameraFormat::new_from(CAMERA_WH.0, CAMERA_WH.1, FrameFormat::MJPEG, 30);
         let img = &DynamicImage::new_rgb8(CAMERA_WH.0, CAMERA_WH.1);
 
-        // let cam_rect = Rect::from_wh(Vec2::from(CAMERA_WH_F32));
-        let mut cam_rect = Rect::from_corners(Vec2::splat(0.0), Vec2::from(CAMERA_WH_F32));
-        // cam_rect = cam_rect.shift(-cam_rect.wh() / 2.0);
+        let cam_rect = Rect::from_corners(Vec2::splat(0.0), camera_wh.as_f32());
 
         let mut webcams: [Cam; 2] = settings.map(|(cam_number, draw_rect)| Cam {
-            backend: ThreadedCamera::new(cam_number, Some(format)).unwrap(),
+            backend: {
+                if let Ok(backend) = ThreadedCamera::new(cam_number, Some(format)) {
+                    Some(backend)
+                } else {
+                    None
+                }
+            },
             frame: Frame::Empty,
             texture: Texture::from_image::<&App>(app, img),
             cam_rect,
@@ -67,17 +72,15 @@ impl Vision {
                 Affine2::from_scale_angle_translation(
                     (draw_rect.wh() / cam_rect.wh()),
                     0.0,
+                    // -draw_rect.xy() / 2.0,
                     -draw_rect.xy() + (-cam_rect.wh() / 2.0) * (draw_rect.wh() / cam_rect.wh()),
                 )
-                // Affine2::from_scale_angle_translation(
-                //     draw_rect.wh() / cam_rect.wh(),
-                //     0.0,
-                //     -draw_rect.xy() + cam_rect.xy(),
-                // )
             },
         });
         for cam in &mut webcams {
-            cam.backend.open_stream(callback).unwrap();
+            if let Some(backend) = &mut cam.backend {
+                backend.open_stream(callback).unwrap();
+            }
         }
 
         let mut detector_raw = rustface::create_detector(MODEL_PATH).unwrap();
@@ -116,11 +119,12 @@ impl Vision {
                 false => &mut self.webcams[1],
             };
             self.ping_pong = !self.ping_pong;
-
-            if let Ok(img) = &mut cam.backend.poll_frame() {
-                let img = DynamicImage::ImageRgb8(img.clone()).rotate270();
-                cam.texture = Texture::from_image::<&App>(app, &img);
-                cam.frame = Frame::Unprocessd(img);
+            if let Some(backend) = &mut cam.backend {
+                if let Ok(img) = &mut backend.poll_frame() {
+                    let img = DynamicImage::ImageRgb8(img.clone()).rotate270();
+                    cam.texture = Texture::from_image::<&App>(app, &img);
+                    cam.frame = Frame::Unprocessd(img);
+                }
             }
         }
     }
@@ -128,10 +132,16 @@ impl Vision {
     pub fn draw_camera(&self, draw: &Draw) {
         for cam in &self.webcams {
             let t = cam.cam_to_screen;
-
-            draw.texture(&cam.texture)
-                .xy(get_t_xy(cam.cam_rect, t))
-                .wh(get_t_wh(cam.cam_rect, t));
+            if let Some(_) = cam.backend {
+                draw.texture(&cam.texture)
+                    .xy(get_t_xy(cam.cam_rect, t))
+                    .wh(get_t_wh(cam.cam_rect, t));
+            } else {
+                draw.rect()
+                    .xy(get_t_xy(cam.cam_rect, t))
+                    .wh(get_t_wh(cam.cam_rect, t))
+                    .color(WHITE);
+            }
         }
     }
 
@@ -147,7 +157,28 @@ impl Vision {
 
             let handle = thread::spawn(move || {
                 if let Ok(mut dectector) = detector.lock() {
-                    *faces.lock().unwrap() = dectector.detect(&frm);
+                    *faces.lock().unwrap() = {
+                        //inlined detector
+                        let ref mut this = dectector;
+                        let image = &frm;
+                        let gray = image.to_luma8();
+                        let (w, h) = gray.dimensions();
+
+                        let image = ImageData::new(&gray, w, h);
+                        this.inner
+                            .detect(&image)
+                            .to_owned()
+                            .iter()
+                            .map(|face| {
+                                let image_wh = vec2(w as f32, h as f32);
+                                let bbox = face.bbox();
+                                let wh = vec2(bbox.width() as f32, bbox.height() as f32);
+                                let mut xy = vec2(bbox.x() as f32, bbox.y() as f32);
+                                Rect::from_xy_wh(xy * vec2(1.0, -1.0), wh)
+                                    .shift(wh + image_wh * vec2(0.0, 0.5))
+                            })
+                            .collect()
+                    };
                 }
             });
         }

@@ -7,9 +7,13 @@ use std::{os::unix::prelude::DirEntryExt, string, time::Duration};
 use nannou::draw;
 use nannou::draw::primitive::rect;
 use nannou::lyon::geom::euclid::SideOffsets2D;
-use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
+use nannou::{
+    draw::background::new, ease, prelude::*, wgpu::ToTextureView,
+};
 use nannou_egui::egui::Slider;
-use nokhwa::{query, Camera, CameraFormat, FrameFormat, Resolution, ThreadedCamera};
+use nokhwa::{
+    query, Camera, CameraFormat, FrameFormat, Resolution, ThreadedCamera,
+};
 use osc::Message;
 use rustface::FaceInfo;
 use wgpu::Texture;
@@ -94,11 +98,10 @@ pub struct Model {
 }
 const SCALE: f32 = 2.5;
 
-const CAMERA_WH: (f32, f32) = (320.0, 240.0);
+const CAMERA_WH: (u32, u32) = (320, 240);
+
 const WIDTH: f32 = 240.0 * 2.0;
 const HEIGHT: f32 = 360.0 * 1.0;
-
-const SHRNK: f32 = 0.9;
 
 fn model(app: &App) -> Model {
     let window_id = app
@@ -109,17 +112,16 @@ fn model(app: &App) -> Model {
         .unwrap();
     let window = app.window(window_id).unwrap();
 
-    let window_rect = window.rect();
+    let win_rect = window.rect();
 
-    let cam_rect = Rect::from_corners(Vec2::splat(0.0), Vec2::from(CAMERA_WH));
-
-    let face_cam_rect = Rect::from_corners(window_rect.top_left(), window_rect.mid_bottom());
-    let street_cam_rect = Rect::from_corners(window_rect.mid_top(), window_rect.bottom_right());
-    print!("{:?}", (face_cam_rect, face_cam_rect));
+    let face_cam_rect =
+        Rect::from_corners(win_rect.top_left(), win_rect.mid_bottom());
+    let street_cam_rect =
+        Rect::from_corners(win_rect.mid_top(), win_rect.bottom_right());
 
     let mut screen = Vec::new();
     for scraen_dim in SCRAENS {
-        screen.push(Scraen::new(app, scraen_dim));
+        screen.push(Scraen::new(app, scraen_dim, face_cam_rect));
     }
 
     let mut port = Connection::new(PORT_NAME, false);
@@ -132,7 +134,11 @@ fn model(app: &App) -> Model {
 
     let rez: (u32, u32) = (12, 12);
 
-    let mut vision = Vision::new(app, [(0, face_cam_rect), (2, street_cam_rect)]);
+    let mut vision = Vision::new(
+        app,
+        CAMERA_WH,
+        [(0, face_cam_rect), (2, street_cam_rect)],
+    );
 
     vision.update_camera(app, face_cam_rect);
 
@@ -147,8 +153,9 @@ fn model(app: &App) -> Model {
     }
 }
 
-fn update(app: &App, model: &mut Model, update: Update) {
+fn update(app: &App, model: &mut Model, _update: Update) {
     let time = app.time;
+    let win = app.window_rect();
 
     model.vision.update_camera(app, model.face_cam_rect);
     model.vision.update_faces();
@@ -156,13 +163,14 @@ fn update(app: &App, model: &mut Model, update: Update) {
     if let Some(t) = model.vision.get_target() {
         model.target = t;
     };
-    let win = app.window_rect();
+
+    model.target = app.mouse.position();
 
     model.port.write(vec![255]);
     for screen in &mut model.scraens {
-        screen.update(&app, model.target, time, win);
         screen.draw_eye();
         screen.render_texture(&app);
+        screen.update(&app, model.target, time);
         if let Some(buf) = screen.serial_packet() {
             model.port.write(buf);
         }
@@ -172,23 +180,24 @@ fn update(app: &App, model: &mut Model, update: Update) {
 
 fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
-
     draw.background().color(BLACK);
 
     model.vision.draw_camera(&draw);
     model.vision.draw_face(&draw, model.face_cam_rect);
 
     for screen in &model.scraens {
-        // screen.draw_to_frame(&draw);
+        screen.draw_to_frame(&draw);
     }
 
     let target2 = app.mouse.position();
     // let target = model.vision.biggest_face.xy();
 
-    draw.text(format!("face {}, mouse {}", model.target, target2).as_str())
-        .color(WHITE)
-        .font_size(24)
-        .w_h(800.0, 10.0)
-        .x_y(0.0, -370.0);
+    draw.text(
+        format!("face {}, mouse {}", model.target, target2).as_str(),
+    )
+    .color(BLACK)
+    .font_size(24)
+    .w_h(800.0, 10.0)
+    .x_y(0.0, -370.0);
     draw.to_frame(app, &frame).unwrap();
 }
