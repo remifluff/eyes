@@ -75,7 +75,7 @@ impl Vision {
         let mut detector_raw = rustface::create_detector(MODEL_PATH).unwrap();
 
         detector_raw.set_min_face_size(40);
-        detector_raw.set_score_thresh(0.70);
+        detector_raw.set_score_thresh(2.0);
         detector_raw.set_pyramid_scale_factor(0.1);
         detector_raw.set_slide_window_step(4, 4);
 
@@ -121,8 +121,8 @@ impl Vision {
 
             if let Ok(img) = &mut cam.backend.poll_frame() {
                 let img = DynamicImage::ImageRgb8(img.clone());
+                cam.frame = Frame::Unprocessd(img.clone());
                 cam.texture = Texture::from_image::<&App>(app, &img.rotate270());
-                cam.frame = Frame::Unprocessd(img);
             }
         }
     }
@@ -144,18 +144,24 @@ impl Vision {
     pub fn update_faces(&mut self) {
         let cam = &mut self.webcams[0];
         if let Frame::Unprocessd(frame) = &mut cam.frame {
-            let detector = Arc::clone(&self.detector);
-            let faces = Arc::clone(&self.faces);
-            let frm = frame.clone();
-            let fr2 = frame.clone();
-            cam.frame = Frame::Processed(fr2);
-            self.get_target();
+            if let Ok(mut dectector) = self.detector.lock() {
+                // *faces.lock().unwrap() = dectector.detect(&frm);
+                println!("{:?}", dectector.detect(&frame));
+            }
 
-            let handle = thread::spawn(move || {
-                if let Ok(mut dectector) = detector.lock() {
-                    *faces.lock().unwrap() = dectector.detect(&frm);
-                }
-            });
+            // let detector = Arc::clone(&self.detector);
+            // let faces = Arc::clone(&self.faces);
+            // let frm = frame.clone();
+            // let fr2 = frame.clone();
+            // cam.frame = Frame::Processed(fr2);
+            // self.get_target();
+
+            // let frm = frame.clone();
+            // let handle = thread::spawn(move || {
+            //     if let Ok(mut dectector) = detector.lock() {
+            //         *faces.lock().unwrap() = dectector.detect(&frm);
+            //     }
+            // });
         }
     }
     pub fn get_target(&mut self) -> Option<()> {
@@ -174,16 +180,17 @@ impl Vision {
             let offset_pos = self.wh;
 
             for face in faces.iter() {
+                println!("{:?}", face);
                 let t = self.camspace_to_screenspace;
 
-                // let xy = (face.xy() + face.wh() * 0.5 - self.wh * 0.5)
-                //     * vec2(1.0, -1.0)
-                //     * self.scale_factor;
+                let xy = (face.xy() + face.wh() * 0.5 - self.wh * 0.5)
+                    * vec2(1.0, -1.0)
+                    * self.scale_factor;
+                // * self.scale_factor
+                // .wh(t.transform_point2(face.wh()))
+                // .xy(t.transform_point2(face.xy()))
 
-                draw.rect()
-                    .wh(t.transform_point2(face.wh()))
-                    .xy(t.transform_point2(face.xy()))
-                    .color(BLUE);
+                draw.rect().wh(face.wh()).xy(face.xy()).color(BLUE);
             }
         }
     }
@@ -199,6 +206,9 @@ impl AsyncDetector {
         let (w, h) = gray.dimensions();
 
         let image = ImageData::new(&gray, w, h);
+
+        println!("{:?}", self.inner.detect(&image));
+
         self.inner
             .detect(&image)
             .to_owned()

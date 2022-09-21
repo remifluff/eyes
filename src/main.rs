@@ -136,7 +136,7 @@ fn model(app: &App) -> Model {
 
     let rez: (u32, u32) = (12, 12);
 
-    let mut vision = Vision::new(app, [(2, face_cam_rect), (0, street_cam_rect)]);
+    let mut vision = Vision::new(app, [(0, face_cam_rect), (2, street_cam_rect)]);
 
     vision.update_camera(app, face_cam_rect);
 
@@ -185,7 +185,10 @@ fn view(app: &App, model: &Model, frame: Frame) {
     for screen in &model.scraens {
         screen.draw_to_frame(&draw);
     }
+
     let target = app.mouse.position();
+    let target = model.vision.biggest_face.xy();
+
     draw.text(format!("{}", target).as_str())
         .color(WHITE)
         .font_size(24)
