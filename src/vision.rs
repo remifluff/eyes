@@ -143,7 +143,7 @@ impl Vision {
             let frm = frame.clone();
             let fr2 = frame.clone();
             cam.frame = Frame::Processed(fr2);
-            // self.get_target();
+            self.get_target();
 
             let handle = thread::spawn(move || {
                 if let Ok(mut dectector) = detector.lock() {

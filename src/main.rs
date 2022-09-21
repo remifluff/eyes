@@ -179,7 +179,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
     model.vision.draw_face(&draw, model.face_cam_rect);
 
     for screen in &model.scraens {
-        screen.draw_to_frame(&draw);
+        // screen.draw_to_frame(&draw);
     }
 
     let target2 = app.mouse.position();
