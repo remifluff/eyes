@@ -15,7 +15,9 @@ use std::sync::mpsc::{self, channel, Receiver, Sender};
 use wgpu::{TextueSnapshot, Texture};
 
 const MODEL_PATH: &str = "model/seeta_fd_frontal_v1.0.bin";
-const CAMERA_WH: (f32, f32) = (320.0, 240.0);
+const CAMERA_WH: (u32, u32) = (320, 240);
+const CAMERA_WH_F32: (f32, f32) = (CAMERA_WH.0 as f32, CAMERA_WH.1 as f32);
+
 static mut CAMERA_READY: bool = false;
 
 pub enum Frame {
@@ -31,42 +33,48 @@ pub struct Vision {
     downscale_factor: f32,
 
     scale_factor: Point2,
-    wh: Point2,
 
     pub biggest_face: Rect,
 
     ping_pong: bool,
-    camera_space: Rect,
-    camspace_to_screenspace: Affine2,
 }
 struct Cam {
     backend: ThreadedCamera,
     frame: Frame,
     texture: Texture,
     draw_rect: Rect,
+    cam_rect: Rect,
+    cam_to_screen: Affine2,
 }
 
 impl Vision {
-    pub fn new(
-        app: &App,
-        settings: [(usize, Rect); 2], // face_webcam: usize,
-                                      // face_draw_rect: Rect,
-                                      // street_webcam: usize,
-                                      // street_draw_rect: Rect,
-    ) -> Vision {
-        let (w, h) = CAMERA_WH;
+    pub fn new(app: &App, settings: [(usize, Rect); 2]) -> Vision {
+        let format = CameraFormat::new_from(CAMERA_WH.0, CAMERA_WH.1, FrameFormat::MJPEG, 30);
+        let img = &DynamicImage::new_rgb8(CAMERA_WH.0, CAMERA_WH.1);
 
-        let mut wh = Point2::new(w, h);
+        // let cam_rect = Rect::from_wh(Vec2::from(CAMERA_WH_F32));
+        let mut cam_rect = Rect::from_corners(Vec2::splat(0.0), Vec2::from(CAMERA_WH_F32));
+        // cam_rect = cam_rect.shift(-cam_rect.wh() / 2.0);
 
-        let mut webcams: [Cam; 2] = settings.map(|(cam_number, draw_rect)| {
-            let format = CameraFormat::new_from(w as u32, h as u32, FrameFormat::MJPEG, 30);
-            let img = &DynamicImage::new_rgb8(w as u32, h as u32);
-            Cam {
-                backend: ThreadedCamera::new(cam_number, Some(format)).unwrap(),
-                frame: Frame::Empty,
-                texture: Texture::from_image::<&App>(app, img),
-                draw_rect: draw_rect,
-            }
+        let mut webcams: [Cam; 2] = settings.map(|(cam_number, draw_rect)| Cam {
+            backend: ThreadedCamera::new(cam_number, Some(format)).unwrap(),
+            frame: Frame::Empty,
+            texture: Texture::from_image::<&App>(app, img),
+            cam_rect,
+            draw_rect,
+
+            cam_to_screen: {
+                Affine2::from_scale_angle_translation(
+                    (draw_rect.wh() / cam_rect.wh()),
+                    0.0,
+                    -draw_rect.xy() + (-cam_rect.wh() / 2.0) * (draw_rect.wh() / cam_rect.wh()),
+                )
+                // Affine2::from_scale_angle_translation(
+                //     draw_rect.wh() / cam_rect.wh(),
+                //     0.0,
+                //     -draw_rect.xy() + cam_rect.xy(),
+                // )
+            },
         });
         for cam in &mut webcams {
             cam.backend.open_stream(callback).unwrap();
@@ -75,7 +83,7 @@ impl Vision {
         let mut detector_raw = rustface::create_detector(MODEL_PATH).unwrap();
 
         detector_raw.set_min_face_size(40);
-        detector_raw.set_score_thresh(2.0);
+        detector_raw.set_score_thresh(1.0);
         detector_raw.set_pyramid_scale_factor(0.1);
         detector_raw.set_slide_window_step(4, 4);
 
@@ -83,23 +91,13 @@ impl Vision {
             inner: detector_raw,
         };
 
-        let camera_space = Rect::from_x_y_w_h(0.0, 0.0, -w, h);
-
         Vision {
-            camspace_to_screenspace: Affine2::from_scale_angle_translation(
-                webcams[1].draw_rect.wh() / camera_space.wh(),
-                0.0,
-                webcams[1].draw_rect.xy(),
-            ),
             webcams,
-            camera_space,
             detector: Arc::new(Mutex::new(detector)),
             faces: Arc::new(Mutex::new(Vec::new())),
 
             downscale_factor: 1.0,
             scale_factor: Point2::new(0.0, 0.0),
-
-            wh,
             biggest_face: Rect::from_x_y_w_h(0.0, 0.0, 0.0, 0.0),
 
             ping_pong: false,
@@ -108,8 +106,8 @@ impl Vision {
     pub fn initialize(&self) {}
 
     pub fn update_camera(&mut self, app: &App, screen: Rect) {
-        self.scale_factor = screen.wh() / self.wh;
-        self.scale_factor = Point2::from([self.scale_factor.max_element(); 2]);
+        // self.scale_factor = screen.wh() / self.wh;
+        // self.scale_factor = Point2::from([self.scale_factor.max_element(); 2]);
 
         if unsafe { CAMERA_READY } {
             unsafe { CAMERA_READY = false } // println!("{}x{} {}", image.width(), image.height(), image.len());
@@ -120,51 +118,41 @@ impl Vision {
             self.ping_pong = !self.ping_pong;
 
             if let Ok(img) = &mut cam.backend.poll_frame() {
-                let img = DynamicImage::ImageRgb8(img.clone());
-                cam.frame = Frame::Unprocessd(img.clone());
-                cam.texture = Texture::from_image::<&App>(app, &img.rotate270());
+                let img = DynamicImage::ImageRgb8(img.clone()).rotate270();
+                cam.texture = Texture::from_image::<&App>(app, &img);
+                cam.frame = Frame::Unprocessd(img);
             }
         }
     }
 
-    pub fn draw_camera(&self, draw: &Draw, offset: Point2) {
+    pub fn draw_camera(&self, draw: &Draw) {
         for cam in &self.webcams {
+            let t = cam.cam_to_screen;
+
             draw.texture(&cam.texture)
-                .wh(cam.draw_rect.wh() * vec2(-1.0, 1.0))
-                .xy(cam.draw_rect.xy());
+                .xy(get_t_xy(cam.cam_rect, t))
+                .wh(get_t_wh(cam.cam_rect, t));
         }
-
-        // vec2(0.0, 0.0) + offset
-        // self.wh * self.scale_factor * vec2(-1.0, 1.0)
-
-        // face_draw_rect.
-        // face_draw_rect.
     }
 
     pub fn update_faces(&mut self) {
         let cam = &mut self.webcams[0];
         if let Frame::Unprocessd(frame) = &mut cam.frame {
-            if let Ok(mut dectector) = self.detector.lock() {
-                // *faces.lock().unwrap() = dectector.detect(&frm);
-                println!("{:?}", dectector.detect(&frame));
-            }
-
-            // let detector = Arc::clone(&self.detector);
-            // let faces = Arc::clone(&self.faces);
-            // let frm = frame.clone();
-            // let fr2 = frame.clone();
-            // cam.frame = Frame::Processed(fr2);
+            let detector = Arc::clone(&self.detector);
+            let faces = Arc::clone(&self.faces);
+            let frm = frame.clone();
+            let fr2 = frame.clone();
+            cam.frame = Frame::Processed(fr2);
             // self.get_target();
 
-            // let frm = frame.clone();
-            // let handle = thread::spawn(move || {
-            //     if let Ok(mut dectector) = detector.lock() {
-            //         *faces.lock().unwrap() = dectector.detect(&frm);
-            //     }
-            // });
+            let handle = thread::spawn(move || {
+                if let Ok(mut dectector) = detector.lock() {
+                    *faces.lock().unwrap() = dectector.detect(&frm);
+                }
+            });
         }
     }
-    pub fn get_target(&mut self) -> Option<()> {
+    pub fn get_target(&mut self) -> Option<Point2> {
         if let Ok(faces) = self.faces.lock() {
             let biggest_face = faces
                 .iter()
@@ -172,25 +160,25 @@ impl Vision {
 
             self.biggest_face = *biggest_face;
         }
-        Some(())
+        let t = self.webcams[0].cam_to_screen;
+
+        // .xy(get_t_xy(*face, t))
+        // .radius(get_t_wh(*face, t).x)
+
+        Some(t.transform_point2(self.biggest_face.xy()))
     }
 
-    pub fn draw_face(&self, draw: &Draw, screen: Rect, offset: Point2) {
+    pub fn draw_face(&self, draw: &Draw, screen: Rect) {
+        let cam = &self.webcams[0];
+
         if let Ok(faces) = self.faces.lock() {
-            let offset_pos = self.wh;
-
             for face in faces.iter() {
-                println!("{:?}", face);
-                let t = self.camspace_to_screenspace;
+                let t = cam.cam_to_screen;
 
-                let xy = (face.xy() + face.wh() * 0.5 - self.wh * 0.5)
-                    * vec2(1.0, -1.0)
-                    * self.scale_factor;
-                // * self.scale_factor
-                // .wh(t.transform_point2(face.wh()))
-                // .xy(t.transform_point2(face.xy()))
-
-                draw.rect().wh(face.wh()).xy(face.xy()).color(BLUE);
+                draw.ellipse()
+                    .xy(get_t_xy(*face, t))
+                    .radius(get_t_wh(*face, t).x)
+                    .color(WHITE);
             }
         }
     }
@@ -206,9 +194,6 @@ impl AsyncDetector {
         let (w, h) = gray.dimensions();
 
         let image = ImageData::new(&gray, w, h);
-
-        println!("{:?}", self.inner.detect(&image));
-
         self.inner
             .detect(&image)
             .to_owned()
@@ -218,14 +203,20 @@ impl AsyncDetector {
                 let bbox = face.bbox();
                 let wh = vec2(bbox.width() as f32, bbox.height() as f32);
                 let mut xy = vec2(bbox.x() as f32, bbox.y() as f32);
-                xy = -xy - wh / 2.0 + image_wh / 2.0;
-
-                Rect::from_xy_wh(xy, wh)
+                Rect::from_xy_wh(xy * vec2(1.0, -1.0), wh).shift(wh + image_wh * vec2(0.0, 0.5))
             })
             .collect()
     }
 }
 unsafe impl Send for AsyncDetector {}
+
+pub fn get_t_xy(rect: Rect, t: Affine2) -> Point2 {
+    t.transform_point2(rect.xy())
+}
+
+pub fn get_t_wh(rect: Rect, t: Affine2) -> Point2 {
+    t.transform_vector2(rect.wh())
+}
 
 pub fn update_faces(
     detector: Arc<Mutex<AsyncDetector>>,

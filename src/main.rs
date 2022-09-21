@@ -90,6 +90,7 @@ pub struct Model {
 
     face_cam_rect: Rect,
     street_cam_rect: Rect,
+    target: Vec2,
 }
 const SCALE: f32 = 2.5;
 
@@ -108,18 +109,13 @@ fn model(app: &App) -> Model {
         .unwrap();
     let window = app.window(window_id).unwrap();
 
-    let face_cam_rect = Rect::from_x_y_w_h(
-        -WIDTH / 4.0 * SCALE * SHRNK,
-        0.0,
-        CAMERA_WH.1 * SCALE * SHRNK,
-        CAMERA_WH.0 * SCALE * SHRNK,
-    );
-    let street_cam_rect = Rect::from_x_y_w_h(
-        WIDTH / 4.0 * SCALE * SHRNK,
-        0.0,
-        CAMERA_WH.1 * SCALE * SHRNK,
-        CAMERA_WH.0 * SCALE * SHRNK,
-    );
+    let window_rect = window.rect();
+
+    let cam_rect = Rect::from_corners(Vec2::splat(0.0), Vec2::from(CAMERA_WH));
+
+    let face_cam_rect = Rect::from_corners(window_rect.top_left(), window_rect.mid_bottom());
+    let street_cam_rect = Rect::from_corners(window_rect.mid_top(), window_rect.bottom_right());
+    print!("{:?}", (face_cam_rect, face_cam_rect));
 
     let mut screen = Vec::new();
     for scraen_dim in SCRAENS {
@@ -147,22 +143,24 @@ fn model(app: &App) -> Model {
         port,
         face_cam_rect,
         street_cam_rect,
+        target: vec2(0.0, 0.0),
     }
 }
 
 fn update(app: &App, model: &mut Model, update: Update) {
-    let t = app.time;
+    let time = app.time;
 
     model.vision.update_camera(app, model.face_cam_rect);
     model.vision.update_faces();
-    let win = app.window_rect();
 
-    let target = model.vision.biggest_face.xy();
-    let target = app.mouse.position();
+    if let Some(t) = model.vision.get_target() {
+        model.target = t;
+    };
+    let win = app.window_rect();
 
     model.port.write(vec![255]);
     for screen in &mut model.scraens {
-        screen.update(&app, target, t, win);
+        screen.update(&app, model.target, time, win);
         screen.draw_eye();
         screen.render_texture(&app);
         if let Some(buf) = screen.serial_packet() {
@@ -177,19 +175,17 @@ fn view(app: &App, model: &Model, frame: Frame) {
 
     draw.background().color(BLACK);
 
-    let offset = vec2(0.0, 0.0);
-
-    model.vision.draw_camera(&draw, offset);
-    model.vision.draw_face(&draw, model.face_cam_rect, offset);
+    model.vision.draw_camera(&draw);
+    model.vision.draw_face(&draw, model.face_cam_rect);
 
     for screen in &model.scraens {
         screen.draw_to_frame(&draw);
     }
 
-    let target = app.mouse.position();
-    let target = model.vision.biggest_face.xy();
+    let target2 = app.mouse.position();
+    // let target = model.vision.biggest_face.xy();
 
-    draw.text(format!("{}", target).as_str())
+    draw.text(format!("face {}, mouse {}", model.target, target2).as_str())
         .color(WHITE)
         .font_size(24)
         .w_h(800.0, 10.0)

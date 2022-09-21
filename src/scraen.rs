@@ -93,15 +93,17 @@ impl Scraen {
     }
 
     pub fn update(&mut self, app: &App, target: Point2, time: f32, window: Rect) {
-        let smooth = (self.target - target);
+        let smooth = self.target - target;
 
         self.target = self.target - smooth * 0.6;
         let target = self.target;
-        let eye = self.draw_rect.xy();
+        self.eye_xy = self.window_transform.inverse().transform_point2(target);
 
-        let dist = eye.distance(target) / 2.0;
+        // let eye = self.draw_rect.xy();
 
-        let angle = Scraen::angle(target, eye);
+        // let dist = eye.distance(target) / 2.0;
+
+        // let angle = Scraen::angle(target, eye);
 
         // let transfrom = Affine2::from_scale_angle_translation(
         //     window.wh() / self.draw_rect.wh(),
@@ -111,14 +113,13 @@ impl Scraen {
         // self.eye_xy = ;
         // * self.fbo_rect.wh()
 
-        self.eye_rt = vec2(dist, angle);
-        self.eye_xy = Scraen::xy_from_rt(self.eye_rt);
+        // self.eye_rt = vec2(30.0, angle);
+        // self.eye_xy = Scraen::xy_from_rt(self.eye_rt);
 
-        // self.eye_xy = self.window_transform.inverse().transform_point2(target);
-        if random_range(0, 100) > 90 {
-            self.blink_ease.start_ease()
-        }
-        self.blink_ease.update(time);
+        // if random_range(0, 100) > 90 {
+        //     self.blink_ease.start_ease()
+        // }
+        // self.blink_ease.update(time);
     }
     pub fn angle(a: Point2, b: Point2) -> f32 {
         (a - b).normalize().angle()
@@ -172,10 +173,6 @@ impl Scraen {
             );
         }
     }
-
-    // fn draw(&self, draw: &Draw) {
-    //     self.draw_to_frame(draw);
-    // }
 
     pub fn draw_to_frame(&self, draw: &Draw) {
         let t = self.window_transform;
