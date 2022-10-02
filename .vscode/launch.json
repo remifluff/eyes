@@ -20,26 +20,10 @@
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in executable 'eyes'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--bin=eyes",
-                    "--package=eyes"
-                ],
-                "filter": {
-                    "name": "eyes",
-                    "kind": "bin"
-                }
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_BACKTRACE": "1"
             },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        }
+        },
     ]
 }

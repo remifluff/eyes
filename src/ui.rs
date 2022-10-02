@@ -2,7 +2,6 @@ use nannou::{prelude::Update, prelude::*, window::Window, Draw};
 use nannou_egui::{self, egui, Egui};
 
 use crate::Settings;
-use nannou_egui::egui::Slider;
 
 pub struct UI {
     pub egui: Egui,
