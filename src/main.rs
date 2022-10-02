@@ -92,7 +92,7 @@ pub struct Settings {
 fn main() {
     nannou::app(model).update(update).run();
 }
-const SHOWDEBUG: bool = false;
+const SHOWDEBUG: bool = true;
 pub struct Model {
     scraens: Vec<Scraen>,
     vision: Vision,
