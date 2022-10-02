@@ -5,13 +5,9 @@ use core::num;
 use nannou::draw;
 use nannou::draw::primitive::rect;
 use nannou::lyon::geom::euclid::SideOffsets2D;
-use nannou::{
-    draw::background::new, ease, prelude::*, wgpu::ToTextureView,
-};
+use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
 use nannou_egui::egui::Slider;
-use nokhwa::{
-    query, Camera, CameraFormat, FrameFormat, Resolution, ThreadedCamera,
-};
+use nokhwa::{query, Camera, CameraFormat, FrameFormat, Resolution, ThreadedCamera};
 use time::macros::{date, datetime};
 
 use osc::Message;
@@ -124,10 +120,8 @@ fn model(app: &App) -> Model {
 
     let win_rect = window.rect();
 
-    let face_cam_rect =
-        Rect::from_corners(win_rect.top_left(), win_rect.mid_bottom());
-    let street_cam_rect =
-        Rect::from_corners(win_rect.mid_top(), win_rect.bottom_right());
+    let face_cam_rect = Rect::from_corners(win_rect.top_left(), win_rect.mid_bottom());
+    let street_cam_rect = Rect::from_corners(win_rect.mid_top(), win_rect.bottom_right());
 
     let mut screen = Vec::new();
     for scraen_dim in SCRAENS {
@@ -144,11 +138,7 @@ fn model(app: &App) -> Model {
 
     let rez: (u32, u32) = (12, 12);
 
-    let mut vision = Vision::new(
-        app,
-        CAMERA_WH,
-        [(0, face_cam_rect), (2, street_cam_rect)],
-    );
+    let mut vision = Vision::new(app, CAMERA_WH, [(0, face_cam_rect), (2, street_cam_rect)]);
 
     vision.update_camera(app, face_cam_rect);
 
@@ -177,8 +167,7 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     };
 
     // model.target = app.mouse.position();
-    let walk = vec2(model.walk_x.val(), model.walk_y.val())
-        - model.face_cam_rect.xy();
+    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.face_cam_rect.xy();
     model.target = walk;
 
     model.walk_x.update();
@@ -223,17 +212,16 @@ fn view(app: &App, model: &Model, frame: Frame) {
     let dt = chrono::offset::Local::now();
     dt.format("%Y-%m-%d %H:%M:%S");
     // font::collection_from_file( model/Futura.ttc)
-    let walk = vec2(model.walk_x.val(), model.walk_y.val())
-        - model.face_cam_rect.xy();
+    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.face_cam_rect.xy();
 
-    draw.ellipse().xy(walk).radius(30.0).color(GREY);
+    if SHOWDEBUG {
+        draw.ellipse().xy(walk).radius(30.0).color(GREY);
+    }
 
-    draw.text(
-        format!("local time: {}", dt.format("%H:%M:%S:%f")).as_str(),
-    )
-    .color(WHITE)
-    .font_size(24)
-    .w_h(800.0, 10.0)
-    .x_y(0.0, -370.0);
+    draw.text(format!("local time: {}", dt.format("%H:%M:%S:%f")).as_str())
+        .color(WHITE)
+        .font_size(24)
+        .w_h(800.0, 10.0)
+        .x_y(0.0, -370.0);
     draw.to_frame(app, &frame).unwrap();
 }

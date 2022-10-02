@@ -26,12 +26,8 @@ impl Walk {
         let mut rng = rand_hc::Hc128Rng::from_entropy();
 
         let utc_now = now();
-        let mut normal_gen = NormalGenerator::new(
-            0.0,
-            55001.0,
-            0.05,
-            utc_now.timestamp() as u64 + salt,
-        );
+        let mut normal_gen =
+            NormalGenerator::new(0.0, 55001.0, 0.05, utc_now.timestamp() as u64 + salt);
 
         let current_time = utc_now.timestamp_millis() as f64;
         let current_value = normal_gen.next(current_time).unwrap();
@@ -53,14 +49,12 @@ impl Walk {
         // for i in 1..10 {
         //     // # pretend time lapsed
 
-        if random_range(0, 1000) < 1 {
+        if random_range(0, 250) < 1 {
             self.offset = random_range(-1000000.0, 1000000.0);
         }
 
-        self.current_time =
-            (chrono::Utc::now().timestamp_millis() as f64) + self.offset;
-        self.current_value =
-            self.normal_gen.next(self.current_time).unwrap();
+        self.current_time = (chrono::Utc::now().timestamp_millis() as f64) + self.offset;
+        self.current_value = self.normal_gen.next(self.current_time).unwrap();
 
         //     println!(
         //         "Normal walk value {} time {}",
