@@ -157,12 +157,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
-name = "bytes"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec8a7b6a70fde80372154c65702f00a0f56f3e1c36abbc6c440484be248856db"
-
-[[package]]
 name = "calloop"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -333,6 +327,17 @@ dependencies = [
  "bitflags",
  "core-foundation 0.9.3",
  "foreign-types",
+ "libc",
+]
+
+[[package]]
+name = "core-media-sys"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "273bf3fc5bf51fd06a7766a84788c1540b6527130a0bce39e00567d6ab9f31f1"
+dependencies = [
+ "cfg-if 0.1.10",
+ "core-foundation-sys 0.7.0",
  "libc",
 ]
 
@@ -517,6 +522,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "4.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e77a43b28d0668df09411cb0bc9a8c2adc40f9a048afe863e05fd43251e8e39c"
+dependencies = [
+ "cfg-if 1.0.0",
+ "num_cpus",
+]
+
+[[package]]
 name = "deflate"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -654,7 +669,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "futures",
- "image 0.23.14",
+ "image",
  "nannou",
  "nannou_egui",
  "nannou_osc",
@@ -666,6 +681,15 @@ dependencies = [
  "rustface",
  "serial2",
  "time 0.3.14",
+]
+
+[[package]]
+name = "fallible_collections"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c195cf4b2285d3c993eb887b4dc56b0d5728bbe1d0f9a99c0ac6bec2da3e4d85"
+dependencies = [
+ "hashbrown",
 ]
 
 [[package]]
@@ -968,24 +992,11 @@ dependencies = [
  "gif",
  "jpeg-decoder",
  "num-iter",
- "num-rational 0.3.2",
+ "num-rational",
  "num-traits",
  "png",
  "scoped_threadpool",
  "tiff",
-]
-
-[[package]]
-name = "image"
-version = "0.24.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd8e4fb07cf672b1642304e731ef8a6a4c7891d67bb4fd4f5ce58cd6ed86803c"
-dependencies = [
- "bytemuck",
- "byteorder",
- "color_quant",
- "num-rational 0.4.1",
- "num-traits",
 ]
 
 [[package]]
@@ -1301,11 +1312,12 @@ dependencies = [
 
 [[package]]
 name = "mozjpeg"
-version = "0.9.4"
+version = "0.8.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c50976021d48f0824d019f68988c91be3b5cd3ef7f0581e2ff8d51251ad1fa2"
+checksum = "7fa82c1c64a5c3af9e8ad958ad0da8de3045c4c433e180453662a9a678e26ce6"
 dependencies = [
- "arrayvec 0.7.2",
+ "arrayvec 0.5.2",
+ "fallible_collections",
  "libc",
  "mozjpeg-sys",
  "rgb",
@@ -1313,9 +1325,9 @@ dependencies = [
 
 [[package]]
 name = "mozjpeg-sys"
-version = "1.0.3"
+version = "0.10.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cffedd1e63b8799eb112e2bd6c8a748c3c25d012501914f481c972e62ecf98d"
+checksum = "798a7f921b39b07a6491c8a3c8c0cbabd5cc9826089603abdf31e6ed9121dfcc"
 dependencies = [
  "cc",
  "dunce",
@@ -1349,7 +1361,7 @@ checksum = "99e905fd16cfd553b94d92badc04611410889c6fe36e5cfdc3325d6466b1991e"
 dependencies = [
  "find_folder",
  "futures",
- "image 0.23.14",
+ "image",
  "instant",
  "lyon",
  "nannou_core",
@@ -1419,7 +1431,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ca299eec1e956df21430f66e8fe210f992f4348c1406e6ed965579d9d00d167"
 dependencies = [
  "futures",
- "image 0.23.14",
+ "image",
  "instant",
  "num_cpus",
  "wgpu",
@@ -1439,6 +1451,9 @@ name = "nasm-rs"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce095842aee9aa3ecbda7a5d2a4df680375fd128a8596b6b56f8e497e231f483"
+dependencies = [
+ "rayon",
+]
 
 [[package]]
 name = "ndk"
@@ -1521,31 +1536,39 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82051dd6745d5184c6efb7bc8be14892a7f6d4f3ad6dbf754d1c7d7d5fe24b43"
 dependencies = [
- "image 0.23.14",
+ "image",
  "rand 0.7.3",
  "rand_xorshift",
 ]
 
 [[package]]
 name = "nokhwa"
-version = "0.10.0"
-source = "git+https://github.com/l1npengtul/nokhwa.git?branch=senpai#7c274634f4623b5c518a11fffd7a9f28d46f3e21"
+version = "0.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04c759c8c5367b90cc068f3a4b1170c143932f05f1d279d507b6f3721e04b254"
 dependencies = [
  "flume",
- "image 0.24.4",
- "nokhwa-core",
+ "image",
+ "mozjpeg",
+ "nokhwa-bindings-macos",
+ "parking_lot",
  "paste",
  "thiserror",
 ]
 
 [[package]]
-name = "nokhwa-core"
-version = "0.1.0"
-source = "git+https://github.com/l1npengtul/nokhwa.git?branch=senpai#7c274634f4623b5c518a11fffd7a9f28d46f3e21"
+name = "nokhwa-bindings-macos"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3367ce4cc94a8d116a6c63212469cec78ad6bf730a68b6a79a33712ce958180e"
 dependencies = [
- "bytes",
- "image 0.24.4",
- "mozjpeg",
+ "block",
+ "cocoa-foundation",
+ "core-media-sys",
+ "dashmap",
+ "flume",
+ "lazy_static",
+ "objc",
  "thiserror",
 ]
 
@@ -1584,7 +1607,7 @@ dependencies = [
  "num-complex",
  "num-integer",
  "num-iter",
- "num-rational 0.3.2",
+ "num-rational",
  "num-traits",
 ]
 
@@ -1637,17 +1660,6 @@ checksum = "12ac428b1cb17fce6f731001d307d351ec70a6d202fc2e60f7d4c5e42d8f4f07"
 dependencies = [
  "autocfg",
  "num-bigint",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0638a1c9d0a3c0914158145bc76cff373a75a627e6ecbfb71cbe6f453a5a19b0"
-dependencies = [
- "autocfg",
  "num-integer",
  "num-traits",
 ]
