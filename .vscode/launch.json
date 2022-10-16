@@ -9,6 +9,9 @@
             "request": "launch",
             "name": "Debug executable 'eyes'",
             "cargo": {
+                "env": {
+                    "RUST_BACKTRACE": "1",
+                },
                 "args": [
                     "build",
                     "--bin=eyes",
@@ -19,11 +22,10 @@
                     "kind": "bin"
                 }
             },
+            // export DYLD_FALLBACK_LIBRARY_PATH="$(xcode-select --print-path)/usr/lib/"
+            // export DYLD_FALLBACK_LIBRARY_PATH="/Applications/Xcode.app/Contents/Developer/usr/lib/"
             "args": [],
             "cwd": "${workspaceFolder}",
-            "env": {
-                "RUST_BACKTRACE": "1"
-            },
         },
     ]
 }

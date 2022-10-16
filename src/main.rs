@@ -5,9 +5,11 @@ use core::num;
 use nannou::draw;
 use nannou::draw::primitive::rect;
 use nannou::lyon::geom::euclid::SideOffsets2D;
-use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
+use nannou::{
+    draw::background::new, ease, prelude::*, wgpu::ToTextureView,
+};
 use nannou_egui::egui::Slider;
-use nokhwa::{query, Camera, CameraFormat, FrameFormat, Resolution, ThreadedCamera};
+
 use time::macros::{date, datetime};
 
 use osc::Message;
@@ -29,8 +31,11 @@ use scraen::Scraen;
 mod ui;
 use ui::UI;
 
-mod vision;
-use vision::Vision;
+// mod vision;
+// use vision::Vision;
+
+mod webcam;
+use webcam::Webcam;
 
 mod timer;
 use timer::Timer;
@@ -40,12 +45,15 @@ use walk::Walk;
 
 pub use serial2::SerialPort;
 
-// const PORT_NAME: &str = "/dev/ttyprintk";
-const PORT_NAME: &str = "/dev/ttyACM0";
+const PORT_NAME: &str = "/dev/ttyprintk";
+// const PORT_NAME: &str = "/dev/ttyACM0";
 
 use nannou::image::DynamicImage::ImageRgb8;
 use nannou_osc as osc;
-
+// use nokhwa::{
+//     query, query_devices, Camera, CameraFormat, CaptureAPIBackend,
+//     FrameFormat, Resolution, ThreadedCamera,
+// };
 const SCRAEN_SCALE: f32 = 10.0 * SCALE;
 
 const SCRAENS: [ScraenDim; 4] = [
@@ -91,7 +99,7 @@ fn main() {
 const SHOWDEBUG: bool = true;
 pub struct Model {
     scraens: Vec<Scraen>,
-    vision: Vision,
+    // vision: Vision,
     // vision2: Vision,
     ui: UI,
     port: Connection,
@@ -101,6 +109,7 @@ pub struct Model {
     target: Vec2,
     walk_x: Walk,
     walk_y: Walk,
+    // webcam: Webcam,
 }
 const SCALE: f32 = 2.5;
 
@@ -120,8 +129,10 @@ fn model(app: &App) -> Model {
 
     let win_rect = window.rect();
 
-    let face_cam_rect = Rect::from_corners(win_rect.top_left(), win_rect.mid_bottom());
-    let street_cam_rect = Rect::from_corners(win_rect.mid_top(), win_rect.bottom_right());
+    let face_cam_rect =
+        Rect::from_corners(win_rect.top_left(), win_rect.mid_bottom());
+    let street_cam_rect =
+        Rect::from_corners(win_rect.mid_top(), win_rect.bottom_right());
 
     let mut screen = Vec::new();
     for scraen_dim in SCRAENS {
@@ -132,19 +143,28 @@ fn model(app: &App) -> Model {
     port.open_port();
     Connection::print_avaliable_ports();
 
+    // let cameras = query_devices(CaptureAPIBackend::Auto).unwrap();
+    // cameras.iter().for_each(|cam| println!("{:?}", cam));
+
+    // println!("{:#?}", (query_devices(CaptureAPIBackend::Auto)));
+
     let write_timer = Timer::start_new(app.time, 0.0001);
 
     let vision_timer = Timer::start_new(app.time, 0.1);
 
     let rez: (u32, u32) = (12, 12);
 
-    let mut vision = Vision::new(app, CAMERA_WH, [(0, face_cam_rect), (2, street_cam_rect)]);
+    // let mut vision = Vision::new(
+    //     app,
+    //     CAMERA_WH,
+    //     [(0, face_cam_rect), (2, street_cam_rect)],
+    // );
 
-    vision.update_camera(app, face_cam_rect);
+    // vision.update_camera(app, face_cam_rect);
 
     Model {
         scraens: screen,
-        vision,
+        // vision,
         ui: UI::new(&window),
         port,
         face_cam_rect,
@@ -152,22 +172,26 @@ fn model(app: &App) -> Model {
         target: vec2(0.0, 0.0),
         walk_x: Walk::new(43324),
         walk_y: Walk::new(621034),
+        // webcam: Webcam::new(app),
     }
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
+    Connection::print_avaliable_ports();
+
     let time = app.time;
     let win = app.window_rect();
 
-    model.vision.update_camera(app, model.face_cam_rect);
-    model.vision.update_faces();
+    // model.face_cam_rect
+    // model.webcam.update(app);
 
-    if let Some(t) = model.vision.get_target() {
-        model.target = t;
-    };
+    // if let Some(t) = model.vision.get_target() {
+    //     model.target = t;
+    // };
 
     // model.target = app.mouse.position();
-    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.face_cam_rect.xy();
+    let walk = vec2(model.walk_x.val(), model.walk_y.val())
+        - model.face_cam_rect.xy();
     model.target = walk;
 
     model.walk_x.update();
@@ -189,9 +213,11 @@ fn update(app: &App, model: &mut Model, _update: Update) {
 fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().color(BLACK);
+    println!("port connected");
 
-    model.vision.draw_camera(&draw);
-    model.vision.draw_face(&draw, model.face_cam_rect);
+    // model.webcam.draw_camera(&draw);
+    // model.webcam.draw_keypoints(&draw);
+    // model.face_cam_rect;
 
     if SHOWDEBUG {
         for screen in &model.scraens {
@@ -212,16 +238,19 @@ fn view(app: &App, model: &Model, frame: Frame) {
     let dt = chrono::offset::Local::now();
     dt.format("%Y-%m-%d %H:%M:%S");
     // font::collection_from_file( model/Futura.ttc)
-    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.face_cam_rect.xy();
+    let walk = vec2(model.walk_x.val(), model.walk_y.val())
+        - model.face_cam_rect.xy();
 
     if SHOWDEBUG {
         draw.ellipse().xy(walk).radius(30.0).color(GREY);
     }
 
-    draw.text(format!("local time: {}", dt.format("%H:%M:%S:%f")).as_str())
-        .color(WHITE)
-        .font_size(24)
-        .w_h(800.0, 10.0)
-        .x_y(0.0, -370.0);
+    draw.text(
+        format!("local time: {}", dt.format("%H:%M:%S:%f")).as_str(),
+    )
+    .color(WHITE)
+    .font_size(24)
+    .w_h(800.0, 10.0)
+    .x_y(0.0, -370.0);
     draw.to_frame(app, &frame).unwrap();
 }
