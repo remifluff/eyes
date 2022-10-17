@@ -2,7 +2,9 @@ use std::iter::Flatten;
 
 use crate::{Connection, Model, ScraenDim, SCRAEN_SCALE};
 use futures::io::Close;
-use image::{imageops::FilterType, math, DynamicImage, GenericImageView, Pixel};
+use image::{
+    imageops::FilterType, math, DynamicImage, GenericImageView, Pixel,
+};
 use nannou::{
     ease,
     geom::rect,
@@ -15,7 +17,9 @@ use nannou::{
 use randomwalk::generators::NormalGenerator;
 use wgpu::TextueSnapshot;
 
-use randomwalk::translators::{ExponentialTranslator, LogNormalTranslator, UniformTranslator};
+use randomwalk::translators::{
+    ExponentialTranslator, LogNormalTranslator, UniformTranslator,
+};
 
 // normal distribution between 0 and 1
 
@@ -37,6 +41,7 @@ pub struct Scraen {
     eye_open_percent: f32,
     eye_r: f32,
     eye_xy: Point2,
+    eye_rt: Point2,
 
     fbo_rect: Rect,
     draw_rect: Rect,
@@ -50,10 +55,15 @@ pub struct Scraen {
 impl Scraen {
     pub fn new(app: &App, params: ScraenDim, webcam_rect: Rect) -> Scraen {
         let scraen_resolution = (params.rez, params.rez);
-        let fbo_resolution = (params.rez * UPSCALE_VAL, params.rez * UPSCALE_VAL);
+        let fbo_resolution =
+            (params.rez * UPSCALE_VAL, params.rez * UPSCALE_VAL);
 
-        let fbo_rect =
-            Rect::from_x_y_w_h(0.0, 0.0, fbo_resolution.0 as f32, fbo_resolution.1 as f32);
+        let fbo_rect = Rect::from_x_y_w_h(
+            0.0,
+            0.0,
+            fbo_resolution.0 as f32,
+            fbo_resolution.1 as f32,
+        );
 
         let draw_rect = Rect::from_x_y_w_h(
             params.xy.0,
@@ -63,7 +73,8 @@ impl Scraen {
         );
         // let fbo_resolution = params.(w * 20, h * 20);
 
-        let frame_buffer = Fbo::new(app, (fbo_resolution.0, fbo_resolution.1));
+        let frame_buffer =
+            Fbo::new(app, (fbo_resolution.0, fbo_resolution.1));
         let img = &DynamicImage::new_rgb8(params.rez, params.rez);
         let texture = wgpu::Texture::from_image(app, img);
         let window_transform = Affine2::from_scale_angle_translation(
@@ -89,6 +100,7 @@ impl Scraen {
 
             eye_r: fbo_rect.h() / 4.0,
             eye_xy: Vec2::splat(0.0),
+            eye_rt: Vec2::splat(0.0),
             target_pos: Vec2::splat(0.0),
             target_vel: Vec2::splat(0.0),
             target_acc: Vec2::splat(0.0),
@@ -112,10 +124,64 @@ impl Scraen {
         //calculate xy from radius and theta
         let radius = max_length * percent;
         let theta = (self.target_pos - screen_center).normalize().angle();
+        self.eye_rt = vec2(radius, theta);
         self.eye_xy = vec2(radius * theta.cos(), radius * theta.sin());
+    }
+    pub fn draw_eye1(&self) {
+        let draw = &self.fbo.draw();
+        draw.background().color(BLACK);
+        let rect_height = self.eye_r * self.blink.val;
+
+        let rect_wh = vec2(self.eye_r * 2.0, rect_height);
+        let rect_xy = vec2(0.0, self.eye_r - (rect_height / 2.0));
+
+        draw.text(std::str::from_utf8(&[random_ascii() as u8]).unwrap())
+            .xy(self.eye_xy)
+            .font_size(24)
+            .color(WHITE);
+
+        draw.rect()
+            .xy(self.eye_xy - rect_xy)
+            .wh(rect_wh)
+            .color(BLACK);
+
+        draw.rect()
+            .xy(self.eye_xy + rect_xy)
+            .wh(rect_wh)
+            .color(BLACK);
     }
 
     pub fn draw_eye(&self) {
+        // self.eye_xy = vec2(radius * theta.cos(), radius * theta.sin());
+        let rad = self.eye_rt.x;
+        let angle = self.eye_rt.y;
+        let angle2 = self.eye_rt.y + PI;
+
+        let start = vec2(rad * angle.cos(), rad * angle.sin());
+
+        let end = vec2(rad * angle2.cos(), rad * angle2.sin());
+
+        let draw = &self.fbo.draw();
+        draw.background().color(BLACK);
+        let rect_height = self.eye_r * self.blink.val;
+
+        let rect_wh = vec2(self.eye_r * 2.0, rect_height);
+        let rect_xy = vec2(0.0, self.eye_r - (rect_height / 2.0));
+
+        draw.arrow().start(start).end(end).weight(2.0).color(WHITE);
+
+        draw.rect()
+            .xy(self.eye_xy - rect_xy)
+            .wh(rect_wh)
+            .color(BLACK);
+
+        draw.rect()
+            .xy(self.eye_xy + rect_xy)
+            .wh(rect_wh)
+            .color(BLACK);
+    }
+
+    pub fn draw_eye2(&self) {
         let draw = &self.fbo.draw();
         draw.background().color(BLACK);
         let rect_height = self.eye_r * self.blink.val;
@@ -185,7 +251,9 @@ impl Scraen {
                 .enumerate_rows()
                 .flat_map(|(i, row)| {
                     let mut mapped_row: Vec<u8> = row
-                        .map(|(x, y, pix)| clamp(pix.to_luma().channels()[0], 0u8, 200u8))
+                        .map(|(x, y, pix)| {
+                            clamp(pix.to_luma().channels()[0], 0u8, 200u8)
+                        })
                         .collect();
                     if i % 2 == 0 {
                         mapped_row.reverse();
@@ -220,7 +288,12 @@ struct Blink {
 }
 
 impl Blink {
-    fn new(shutting_time: f64, closed_time: f64, opening_time: f64, chance: u32) -> Blink {
+    fn new(
+        shutting_time: f64,
+        closed_time: f64,
+        opening_time: f64,
+        chance: u32,
+    ) -> Blink {
         Blink {
             state: State::Dorment,
             shutting_time,
@@ -236,7 +309,8 @@ impl Blink {
             State::Closing(start_time) => {
                 let t = time - start_time;
                 if t < self.shutting_time {
-                    ease::sine::ease_in(t, 0.0, 1.0, self.shutting_time) as f32
+                    ease::sine::ease_in(t, 0.0, 1.0, self.shutting_time)
+                        as f32
                 } else {
                     self.state = State::Closed(time);
                     1.0
@@ -254,7 +328,12 @@ impl Blink {
             State::Opening(start_time) => {
                 let t = time - start_time;
                 if t < self.opening_time {
-                    (1.0 - ease::sine::ease_out(t, 0.0, 1.0, self.opening_time) as f32)
+                    (1.0 - ease::sine::ease_out(
+                        t,
+                        0.0,
+                        1.0,
+                        self.opening_time,
+                    ) as f32)
                 } else {
                     self.state = State::Dorment;
                     0.0

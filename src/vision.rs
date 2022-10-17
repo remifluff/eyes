@@ -1,19 +1,13 @@
-use std::convert::TryInto;
 use std::sync::{Arc, Mutex};
-use std::{option, thread};
+use std::thread;
 
-use crate::{Connection, Model, Settings, CAMERA_WH};
-use image::{GenericImageView, ImageBuffer, Rgb};
-use nannou::draw::primitive::rect;
-use nannou::image::{DynamicImage, GrayImage};
-use nannou::lyon::geom::euclid::point2;
-use nannou::lyon::math::{rect, Point};
+use crate::CAMERA_WH;
+use image::{ImageBuffer, Rgb};
+use nannou::image::DynamicImage;
 use nannou::prelude::*;
-use nannou_egui::egui_wgpu_backend::epi::backend;
-use nokhwa::{Camera, CameraFormat, FrameFormat, ThreadedCamera};
-use rustface::{Detector, FaceInfo, ImageData};
-use std::sync::mpsc::{self, channel, Receiver, Sender};
-use wgpu::{TextueSnapshot, Texture};
+use nokhwa::{CameraFormat, FrameFormat, ThreadedCamera};
+use rustface::{Detector, ImageData};
+use wgpu::Texture;
 
 const MODEL_PATH: &str = "model/seeta_fd_frontal_v1.0.bin";
 const CAMERA_WH_F32: (f32, f32) = (CAMERA_WH.0 as f32, CAMERA_WH.1 as f32);
@@ -48,42 +42,58 @@ struct Cam {
 }
 
 impl Vision {
-    pub fn new(app: &App, (w, h): (u32, u32), settings: [(usize, Rect); 2]) -> Vision {
+    pub fn new(
+        app: &App,
+        (w, h): (u32, u32),
+        settings: [(usize, Rect); 2],
+    ) -> Vision {
         let camera_wh = UVec2::new(w, h);
-        let format = CameraFormat::new_from(CAMERA_WH.0, CAMERA_WH.1, FrameFormat::MJPEG, 30);
+        let format = CameraFormat::new_from(
+            CAMERA_WH.0,
+            CAMERA_WH.1,
+            FrameFormat::MJPEG,
+            30,
+        );
         let img = &DynamicImage::new_rgb8(CAMERA_WH.0, CAMERA_WH.1);
 
-        let cam_rect = Rect::from_corners(Vec2::splat(0.0), camera_wh.as_f32());
+        let cam_rect =
+            Rect::from_corners(Vec2::splat(0.0), camera_wh.as_f32());
 
-        let mut webcams: [Cam; 2] = settings.map(|(cam_number, draw_rect)| Cam {
-            backend: {
-                if let Ok(backend) = ThreadedCamera::new(cam_number, Some(format)) {
-                    Some(backend)
-                } else {
-                    None
-                }
-            },
-            frame: Frame::Empty,
-            texture: Texture::from_image::<&App>(app, img),
-            cam_rect,
-            draw_rect,
+        let mut webcams: [Cam; 2] =
+            settings.map(|(cam_number, draw_rect)| Cam {
+                backend: {
+                    if let Ok(backend) =
+                        ThreadedCamera::new(cam_number, Some(format))
+                    {
+                        Some(backend)
+                    } else {
+                        None
+                    }
+                },
+                frame: Frame::Empty,
+                texture: Texture::from_image::<&App>(app, img),
+                cam_rect,
+                draw_rect,
 
-            cam_to_screen: {
-                Affine2::from_scale_angle_translation(
-                    (draw_rect.wh() / cam_rect.wh()),
-                    0.0,
-                    // -draw_rect.xy() / 2.0,
-                    -draw_rect.xy() + (-cam_rect.wh() / 2.0) * (draw_rect.wh() / cam_rect.wh()),
-                )
-            },
-        });
+                cam_to_screen: {
+                    Affine2::from_scale_angle_translation(
+                        (draw_rect.wh() / cam_rect.wh()),
+                        0.0,
+                        // -draw_rect.xy() / 2.0,
+                        -draw_rect.xy()
+                            + (-cam_rect.wh() / 2.0)
+                                * (draw_rect.wh() / cam_rect.wh()),
+                    )
+                },
+            });
         for cam in &mut webcams {
             if let Some(backend) = &mut cam.backend {
                 backend.open_stream(callback).unwrap();
             }
         }
 
-        let mut detector_raw = rustface::create_detector(MODEL_PATH).unwrap();
+        let mut detector_raw =
+            rustface::create_detector(MODEL_PATH).unwrap();
 
         detector_raw.set_min_face_size(40);
         detector_raw.set_score_thresh(1.0);
@@ -121,7 +131,8 @@ impl Vision {
             self.ping_pong = !self.ping_pong;
             if let Some(backend) = &mut cam.backend {
                 if let Ok(img) = &mut backend.poll_frame() {
-                    let img = DynamicImage::ImageRgb8(img.clone()).rotate270();
+                    let img =
+                        DynamicImage::ImageRgb8(img.clone()).rotate270();
                     cam.texture = Texture::from_image::<&App>(app, &img);
                     cam.frame = Frame::Unprocessd(img);
                 }
@@ -172,8 +183,12 @@ impl Vision {
                             .map(|face| {
                                 let image_wh = vec2(w as f32, h as f32);
                                 let bbox = face.bbox();
-                                let wh = vec2(bbox.width() as f32, bbox.height() as f32);
-                                let mut xy = vec2(bbox.x() as f32, bbox.y() as f32);
+                                let wh = vec2(
+                                    bbox.width() as f32,
+                                    bbox.height() as f32,
+                                );
+                                let mut xy =
+                                    vec2(bbox.x() as f32, bbox.y() as f32);
                                 Rect::from_xy_wh(xy * vec2(1.0, -1.0), wh)
                                     .shift(wh + image_wh * vec2(0.0, 0.5))
                             })
@@ -234,7 +249,8 @@ impl AsyncDetector {
                 let bbox = face.bbox();
                 let wh = vec2(bbox.width() as f32, bbox.height() as f32);
                 let mut xy = vec2(bbox.x() as f32, bbox.y() as f32);
-                Rect::from_xy_wh(xy * vec2(1.0, -1.0), wh).shift(wh + image_wh * vec2(0.0, 0.5))
+                Rect::from_xy_wh(xy * vec2(1.0, -1.0), wh)
+                    .shift(wh + image_wh * vec2(0.0, 0.5))
             })
             .collect()
     }
@@ -263,7 +279,7 @@ pub fn update_faces(
         // // faces
     });
 }
-fn callback(image: nannou::image::ImageBuffer<Rgb<u8>, Vec<u8>>) {
+fn callback(image: ImageBuffer<Rgb<u8>, Vec<u8>>) {
     unsafe { CAMERA_READY = true } // println!("{}x{} {}", image.width(), image.height(), image.len());
 }
 // fn rect_from_faceInfo(face: &FaceInfo) -> Rect {

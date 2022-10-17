@@ -1,50 +1,30 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
-use chrono::{TimeZone, Utc};
-use core::num;
-use nannou::draw;
-use nannou::draw::primitive::rect;
-use nannou::lyon::geom::euclid::SideOffsets2D;
-use nannou::{draw::background::new, ease, prelude::*, wgpu::ToTextureView};
-use nannou_egui::egui::Slider;
-use nokhwa::{query, Camera, CameraFormat, FrameFormat, Resolution, ThreadedCamera};
-use time::macros::{date, datetime};
+// #![allow(unused_imports)]
 
-use osc::Message;
-use rustface::FaceInfo;
-use std::time::Instant;
-use std::time::{Duration, SystemTime};
-use std::{os::unix::prelude::DirEntryExt, string};
-use time::Weekday::Wednesday;
-use time::{Date, OffsetDateTime, PrimitiveDateTime, UtcOffset};
-use wgpu::Texture;
+use nannou::prelude::*;
 
 pub mod connection;
 
 use crate::connection::Connection;
 
+mod data;
+use data::draw_text;
+
 mod scraen;
 use scraen::Scraen;
-
-mod ui;
-use ui::UI;
 
 mod vision;
 use vision::Vision;
 
 mod timer;
-use timer::Timer;
 
 mod walk;
 use walk::Walk;
 
 pub use serial2::SerialPort;
 
-// const PORT_NAME: &str = "/dev/ttyprintk";
-const PORT_NAME: &str = "/dev/ttyACM0";
-
-use nannou::image::DynamicImage::ImageRgb8;
-use nannou_osc as osc;
+const PORT_NAME: &str = "/dev/ttyprintk";
+// const PORT_NAME: &str = "/dev/ttyACM0";
 
 const SCRAEN_SCALE: f32 = 10.0 * SCALE;
 
@@ -93,7 +73,6 @@ pub struct Model {
     scraens: Vec<Scraen>,
     vision: Vision,
     // vision2: Vision,
-    ui: UI,
     port: Connection,
 
     face_cam_rect: Rect,
@@ -120,32 +99,31 @@ fn model(app: &App) -> Model {
 
     let win_rect = window.rect();
 
-    let face_cam_rect = Rect::from_corners(win_rect.top_left(), win_rect.mid_bottom());
-    let street_cam_rect = Rect::from_corners(win_rect.mid_top(), win_rect.bottom_right());
+    let face_cam_rect =
+        Rect::from_corners(win_rect.top_left(), win_rect.mid_bottom());
+    let street_cam_rect =
+        Rect::from_corners(win_rect.mid_top(), win_rect.bottom_right());
 
     let mut screen = Vec::new();
     for scraen_dim in SCRAENS {
         screen.push(Scraen::new(app, scraen_dim, face_cam_rect));
     }
 
-    let mut port = Connection::new(PORT_NAME, false);
+    let mut port = Connection::new(PORT_NAME, true);
     port.open_port();
     Connection::print_avaliable_ports();
 
-    let write_timer = Timer::start_new(app.time, 0.0001);
-
-    let vision_timer = Timer::start_new(app.time, 0.1);
-
-    let rez: (u32, u32) = (12, 12);
-
-    let mut vision = Vision::new(app, CAMERA_WH, [(0, face_cam_rect), (2, street_cam_rect)]);
+    let mut vision = Vision::new(
+        app,
+        CAMERA_WH,
+        [(0, face_cam_rect), (2, street_cam_rect)],
+    );
 
     vision.update_camera(app, face_cam_rect);
 
     Model {
         scraens: screen,
         vision,
-        ui: UI::new(&window),
         port,
         face_cam_rect,
         street_cam_rect,
@@ -157,7 +135,6 @@ fn model(app: &App) -> Model {
 
 fn update(app: &App, model: &mut Model, _update: Update) {
     let time = app.time;
-    let win = app.window_rect();
 
     model.vision.update_camera(app, model.face_cam_rect);
     model.vision.update_faces();
@@ -167,7 +144,8 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     };
 
     // model.target = app.mouse.position();
-    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.face_cam_rect.xy();
+    let walk = vec2(model.walk_x.val(), model.walk_y.val())
+        - model.face_cam_rect.xy();
     model.target = walk;
 
     model.walk_x.update();
@@ -199,29 +177,14 @@ fn view(app: &App, model: &Model, frame: Frame) {
         }
     }
 
-    let target2 = app.mouse.position();
     // let target = model.vision.biggest_face.xy();
-
-    use chrono;
-
-    fn main() {
-        println!("{:?}", chrono::offset::Local::now());
-        println!("{:?}", chrono::offset::Utc::now());
-    }
-
-    let dt = chrono::offset::Local::now();
-    dt.format("%Y-%m-%d %H:%M:%S");
-    // font::collection_from_file( model/Futura.ttc)
-    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.face_cam_rect.xy();
-
+    let walk = vec2(model.walk_x.val(), model.walk_y.val())
+        - model.face_cam_rect.xy();
     if SHOWDEBUG {
         draw.ellipse().xy(walk).radius(30.0).color(GREY);
     }
 
-    draw.text(format!("local time: {}", dt.format("%H:%M:%S:%f")).as_str())
-        .color(WHITE)
-        .font_size(24)
-        .w_h(800.0, 10.0)
-        .x_y(0.0, -370.0);
+    draw_text(&draw);
+
     draw.to_frame(app, &frame).unwrap();
 }
