@@ -16,7 +16,7 @@ anyhow = "1.0.64"
 time = { version = "0.3.1", features = ["macros"] }
 
 
-nokhwa = {version = "0.9.4", features = ["input-avfoundation", "output-threaded"]}
+nokhwa = {version = "0.9.4", features = ["input-opencv", "output-threaded"]}
 # nokhwa = {git = "https://github.com/l1npengtul/nokhwa.git", branch = "senpai", features =["output-threaded"]}
 
 
@@ -32,3 +32,4 @@ image = {version = "0.23.14", default-features = false }
 # [features]
 
 # nokhwa = ["input-avfoundation", "output-threaded"]
+

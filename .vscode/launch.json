@@ -10,7 +10,7 @@
             "name": "Debug executable 'eyes'",
             "cargo": {
                 "args": [
-                    "build",
+                    "run",
                     "--bin=eyes",
                     "--package=eyes"
                 ],
@@ -20,10 +20,10 @@
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}",
             "env": {
                 "RUST_BACKTRACE": "1"
             },
+            "cwd": "${workspaceFolder}",
         },
     ]
 }
