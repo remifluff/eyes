@@ -12,15 +12,22 @@ use wgpu::Texture;
 const MODEL_PATH: &str = "model/seeta_fd_frontal_v1.0.bin";
 const CAMERA_WH_F32: (f32, f32) = (CAMERA_WH.0 as f32, CAMERA_WH.1 as f32);
 
-static mut CAMERA_READY: bool = false;
-
+static mut CAMERA_READY: [bool; 2] = [false, false];
+struct Cam {
+    backend: Option<ThreadedCamera>,
+    frame: Frame,
+    texture: Texture,
+    screenspace_rect: Rect,
+    camspace_rect: Rect,
+    cam_to_screen: Affine2,
+}
 pub enum Frame {
     Empty,
     Unprocessd(DynamicImage),
     Processed(DynamicImage),
 }
 pub struct Vision {
-    webcams: [Cam; 2],
+    webcams: Vec<Cam>,
     detector: Arc<Mutex<AsyncDetector>>,
 
     faces: Arc<Mutex<Vec<Rect>>>,
@@ -32,20 +39,13 @@ pub struct Vision {
 
     ping_pong: bool,
 }
-struct Cam {
-    backend: Option<ThreadedCamera>,
-    frame: Frame,
-    texture: Texture,
-    draw_rect: Rect,
-    cam_rect: Rect,
-    cam_to_screen: Affine2,
-}
 
 impl Vision {
     pub fn new(
         app: &App,
         (w, h): (u32, u32),
-        settings: [(usize, Rect); 2],
+        drawspace_rect: Rect,
+        webcams: [usize; 2], // settings: [(usize, Rect); 2],
     ) -> Vision {
         let camera_wh = UVec2::new(w, h);
         let format = CameraFormat::new_from(
@@ -56,14 +56,27 @@ impl Vision {
         );
         let img = &DynamicImage::new_rgb8(CAMERA_WH.0, CAMERA_WH.1);
 
+        let drawspace_halves = [
+            Rect::from_corners(
+                drawspace_rect.top_left(),
+                drawspace_rect.mid_bottom(),
+            ),
+            Rect::from_corners(
+                drawspace_rect.mid_top(),
+                drawspace_rect.bottom_right(),
+            ),
+        ];
+
         let cam_rect =
             Rect::from_corners(Vec2::splat(0.0), camera_wh.as_f32());
 
-        let mut webcams: [Cam; 2] =
-            settings.map(|(cam_number, draw_rect)| Cam {
+        let mut webcams: Vec<Cam> = webcams
+            .iter()
+            .enumerate()
+            .map(|(i, cam_number)| Cam {
                 backend: {
                     if let Ok(backend) =
-                        ThreadedCamera::new(cam_number, Some(format))
+                        ThreadedCamera::new(*cam_number, Some(format))
                     {
                         Some(backend)
                     } else {
@@ -72,20 +85,22 @@ impl Vision {
                 },
                 frame: Frame::Empty,
                 texture: Texture::from_image::<&App>(app, img),
-                cam_rect,
-                draw_rect,
+                screenspace_rect: drawspace_halves[i],
+                camspace_rect: cam_rect,
 
                 cam_to_screen: {
                     Affine2::from_scale_angle_translation(
-                        (draw_rect.wh() / cam_rect.wh()),
+                        (drawspace_halves[i].wh() / cam_rect.wh()),
                         0.0,
                         // -draw_rect.xy() / 2.0,
-                        -draw_rect.xy()
+                        -drawspace_halves[i].xy()
                             + (-cam_rect.wh() / 2.0)
-                                * (draw_rect.wh() / cam_rect.wh()),
+                                * (drawspace_halves[i].wh()
+                                    / drawspace_halves[i].wh()),
                     )
                 },
-            });
+            })
+            .collect::<Vec<Cam>>();
         for cam in &mut webcams {
             if let Some(backend) = &mut cam.backend {
                 backend.open_stream(callback).unwrap();
@@ -118,12 +133,18 @@ impl Vision {
     }
     pub fn initialize(&self) {}
 
-    pub fn update_camera(&mut self, app: &App, screen: Rect) {
+    pub fn update(&mut self, app: &App) -> Option<Vec2> {
+        self.update_cameras(app);
+        self.update_faces();
+        self.get_target()
+    }
+
+    pub fn update_cameras(&mut self, app: &App) {
         // self.scale_factor = screen.wh() / self.wh;
         // self.scale_factor = Point2::from([self.scale_factor.max_element(); 2]);
 
-        if unsafe { CAMERA_READY } {
-            unsafe { CAMERA_READY = false } // println!("{}x{} {}", image.width(), image.height(), image.len());
+        if unsafe { CAMERA_READY[0] && CAMERA_READY[1] } {
+            unsafe { CAMERA_READY = [false, false] } // println!("{}x{} {}", image.width(), image.height(), image.len());
             let cam = match self.ping_pong {
                 true => &mut self.webcams[0],
                 false => &mut self.webcams[1],
@@ -145,12 +166,12 @@ impl Vision {
             let t = cam.cam_to_screen;
             if let Some(_) = cam.backend {
                 draw.texture(&cam.texture)
-                    .xy(get_t_xy(cam.cam_rect, t))
-                    .wh(get_t_wh(cam.cam_rect, t));
+                    .xy(get_t_xy(cam.camspace_rect, t))
+                    .wh(get_t_wh(cam.camspace_rect, t));
             } else {
                 draw.rect()
-                    .xy(get_t_xy(cam.cam_rect, t))
-                    .wh(get_t_wh(cam.cam_rect, t))
+                    .xy(get_t_xy(cam.camspace_rect, t))
+                    .wh(get_t_wh(cam.camspace_rect, t))
                     .color(WHITE);
             }
         }
@@ -280,7 +301,7 @@ pub fn update_faces(
     });
 }
 fn callback(image: ImageBuffer<Rgb<u8>, Vec<u8>>) {
-    unsafe { CAMERA_READY = true } // println!("{}x{} {}", image.width(), image.height(), image.len());
+    unsafe { CAMERA_READY = [true, true] } // println!("{}x{} {}", image.width(), image.height(), image.len());
 }
 // fn rect_from_faceInfo(face: &FaceInfo) -> Rect {
 //     let bbox = face.bbox();
