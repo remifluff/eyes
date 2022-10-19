@@ -34,8 +34,10 @@ pub const OSC_PORT: u16 = 8338;
 
 pub const SCALE: f32 = 2.5;
 
-pub const CAMERA_WH: (u32, u32) = (320, 240);
+// pub const CAMERA_WH: (u32, u32) = (320, 240);
+pub const CAMERA_WH: (u32, u32) = (1280, 960);
 
+// const wh: [f32; 2] = [1280.0, 960.0];
 pub const WIDTH: f32 = 240.0 * 2.0;
 pub const HEIGHT: f32 = 360.0 * 1.0;
 
