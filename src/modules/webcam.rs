@@ -1,85 +1,87 @@
+use image::DynamicImage;
 use nannou::prelude::*;
 use nannou::{App, Draw};
-use opencv::core::{flip, Vec3b};
-use opencv::objdetect::CascadeClassifier;
-use opencv::{
-    core::*,
-    imgproc::{self, *},
-    prelude::*,
-    types, Result,
-};
-
-use opencv::videoio::*;
-use opencv::{highgui::*, objdetect, prelude::*, videoio};
+use nannou_wgpu::Texture;
 
 mod camera;
-use camera::*;
+use camera::Camera;
+mod detector;
+use detector::Detector;
 
 pub struct Webcam {
     cam: Camera,
-    face: CascadeClassifier,
+    detector: Detector,
+    camera_texture: Texture,
+    // pub video_size: Vec2,
+    // pub texture: Texture,
 }
 impl Webcam {
     pub fn new(app: &App) -> Webcam {
-        let xml = find_file(
-            "haarcascades/haarcascade_frontalface_alt.xml",
-            true,
-            false,
-        )
-        .unwrap();
+        let cam = Camera::new(1);
+
+        let empty = &DynamicImage::new_rgb8(cam.w(), cam.h());
 
         Webcam {
-            cam: Camera::new(app),
-            face: objdetect::CascadeClassifier::new(&xml).unwrap(),
+            cam,
+            camera_texture: Texture::from_image::<&App>(app, empty),
+            detector: Detector::new(),
         }
     }
-
-    pub fn do_faces(&mut self) -> Result<()> {
-        let reduced = self.cam.face_detect_frame().unwrap();
-        let mut faces = types::VectorOfRect::new();
-
-        self.face.detect_multi_scale(
-            &reduced,
-            &mut faces,
-            1.1,
-            2,
-            objdetect::CASCADE_SCALE_IMAGE,
-            Size {
-                width: 30,
-                height: 30,
-            },
-            Size {
-                width: 0,
-                height: 0,
-            },
-        )?;
-        println!("faces: {}", faces.len());
-        for face in faces {
-            println!("face {:?}", face);
-            let scaled_face = opencv::core::Rect {
-                x: face.x * 4,
-                y: face.y * 4,
-                width: face.width * 4,
-                height: face.height * 4,
-            };
-            // imgproc::rectangle(
-            //     &mut frame,
-            //     scaled_face,
-            //     core::Scalar::new(0f64, -1f64, -1f64, -1f64),
-            //     1,
-            //     8,
-            //     0,
-            // )?;
-        }
-        Ok(())
-    }
-
     pub fn update(&mut self, app: &App) {
-        self.cam.update();
-        self.cam.update_texture(app);
+        self.cam.get_frame();
+
+        //render camera
+        let width = self.cam.w();
+        let height = self.cam.h();
+
+        let data = &self.cam.data;
+        if let Some(data) = &data {
+            let image =
+                image::ImageBuffer::from_fn(width, height, |x, y| {
+                    let pixel = data[y as usize][(width - x - 1) as usize];
+                    image::Rgb([
+                        pixel[2] as u8,
+                        pixel[1] as u8,
+                        pixel[0] as u8,
+                    ])
+                });
+            let img = DynamicImage::ImageRgb8(image.clone());
+            self.camera_texture = Texture::from_image::<&App>(app, &img);
+        }
+        //face stuff
+        self.detector.update_faces(&self.cam.img);
+    }
+    pub fn draw(&self, draw: &Draw) {
+        //draw camera
+        draw.texture(&self.camera_texture)
+            .wh(self.webcam_rect().wh());
+        //draw faces
+        for face in &self.detector.faces {
+            let w = face.width as f32 * 4.0;
+            let h = face.height as f32 * 4.0;
+            let x = face.x as f32 * 4.0 + w / 2.0;
+            let y = face.y as f32 * 4.0 + h / 2.0;
+
+            // face.x as f32 * 4.0 - offset_x,
+            // face.y as f32 * 4.0 - offset_y,
+
+            let offset_x = self.cam.w() as f32 / 2.0 * -1.0;
+            let offset_y = self.cam.h() as f32 / 2.0;
+
+            //convert face to rect
+            let face = Rect::from_x_y_w_h(x + offset_x, y, w, h);
+
+            //draw face
+            draw.rect().color(WHITE).xy(face.xy()).wh(face.wh());
+        }
     }
 
-    pub fn draw_camera(&self, draw: &Draw) {
-        draw.texture(&self.cam.texture);
+    pub fn webcam_rect(&self) -> Rect {
+        Rect::from_x_y_w_h(
+            0.0,
+            0.0,
+            self.cam.w() as f32,
+            self.cam.h() as f32,
+        )
     }
 }

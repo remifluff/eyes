@@ -12,8 +12,7 @@ fn main() {
 }
 pub struct Model {
     scraens: Vec<Scraen>,
-    // vision: Vision,
-    // vision2: Vision,
+
     port: Connection,
 
     face_cam_rect: Rect,
@@ -101,7 +100,8 @@ fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().color(BLACK);
 
-    model.webcam.draw_camera(&draw);
+    model.webcam.draw(&draw);
+
     // model.webcam.draw_keypoints(&draw);
     // model.face_cam_rect;
 

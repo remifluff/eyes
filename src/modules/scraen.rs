@@ -2,7 +2,9 @@ use std::iter::Flatten;
 
 use crate::{Connection, Model, ScraenDim, SCRAEN_SCALE};
 use futures::io::Close;
-use image::{imageops::FilterType, math, DynamicImage, GenericImageView, Pixel};
+use image::{
+    imageops::FilterType, math, DynamicImage, GenericImageView, Pixel,
+};
 use nannou::{
     ease,
     geom::rect,
@@ -15,7 +17,9 @@ use nannou::{
 use randomwalk::generators::NormalGenerator;
 use wgpu::TextueSnapshot;
 
-use randomwalk::translators::{ExponentialTranslator, LogNormalTranslator, UniformTranslator};
+use randomwalk::translators::{
+    ExponentialTranslator, LogNormalTranslator, UniformTranslator,
+};
 
 // normal distribution between 0 and 1
 
@@ -50,10 +54,15 @@ pub struct Scraen {
 impl Scraen {
     pub fn new(app: &App, params: ScraenDim, webcam_rect: Rect) -> Scraen {
         let scraen_resolution = (params.rez, params.rez);
-        let fbo_resolution = (params.rez * UPSCALE_VAL, params.rez * UPSCALE_VAL);
+        let fbo_resolution =
+            (params.rez * UPSCALE_VAL, params.rez * UPSCALE_VAL);
 
-        let fbo_rect =
-            Rect::from_x_y_w_h(0.0, 0.0, fbo_resolution.0 as f32, fbo_resolution.1 as f32);
+        let fbo_rect = Rect::from_x_y_w_h(
+            0.0,
+            0.0,
+            fbo_resolution.0 as f32,
+            fbo_resolution.1 as f32,
+        );
 
         let draw_rect = Rect::from_x_y_w_h(
             params.xy.0,
@@ -63,7 +72,8 @@ impl Scraen {
         );
         // let fbo_resolution = params.(w * 20, h * 20);
 
-        let frame_buffer = Fbo::new(app, (fbo_resolution.0, fbo_resolution.1));
+        let frame_buffer =
+            Fbo::new(app, (fbo_resolution.0, fbo_resolution.1));
         let img = &DynamicImage::new_rgb8(params.rez, params.rez);
         let texture = wgpu::Texture::from_image(app, img);
         let window_transform = Affine2::from_scale_angle_translation(
@@ -185,7 +195,9 @@ impl Scraen {
                 .enumerate_rows()
                 .flat_map(|(i, row)| {
                     let mut mapped_row: Vec<u8> = row
-                        .map(|(x, y, pix)| clamp(pix.to_luma().channels()[0], 0u8, 200u8))
+                        .map(|(x, y, pix)| {
+                            clamp(pix.to_luma().channels()[0], 0u8, 200u8)
+                        })
                         .collect();
                     if i % 2 == 0 {
                         mapped_row.reverse();
@@ -220,7 +232,12 @@ struct Blink {
 }
 
 impl Blink {
-    fn new(shutting_time: f64, closed_time: f64, opening_time: f64, chance: u32) -> Blink {
+    fn new(
+        shutting_time: f64,
+        closed_time: f64,
+        opening_time: f64,
+        chance: u32,
+    ) -> Blink {
         Blink {
             state: State::Dorment,
             shutting_time,
@@ -236,7 +253,8 @@ impl Blink {
             State::Closing(start_time) => {
                 let t = time - start_time;
                 if t < self.shutting_time {
-                    ease::sine::ease_in(t, 0.0, 1.0, self.shutting_time) as f32
+                    ease::sine::ease_in(t, 0.0, 1.0, self.shutting_time)
+                        as f32
                 } else {
                     self.state = State::Closed(time);
                     1.0
@@ -254,7 +272,12 @@ impl Blink {
             State::Opening(start_time) => {
                 let t = time - start_time;
                 if t < self.opening_time {
-                    (1.0 - ease::sine::ease_out(t, 0.0, 1.0, self.opening_time) as f32)
+                    (1.0 - ease::sine::ease_out(
+                        t,
+                        0.0,
+                        1.0,
+                        self.opening_time,
+                    ) as f32)
                 } else {
                     self.state = State::Dorment;
                     0.0

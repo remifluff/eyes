@@ -7,9 +7,6 @@ pub use scraen::Scraen;
 pub mod webcam;
 pub use webcam::Webcam;
 
-pub mod timer;
-pub use timer::Timer;
-
 pub mod walk;
 pub use walk::Walk;
 
