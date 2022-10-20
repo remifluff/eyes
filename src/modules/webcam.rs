@@ -46,6 +46,7 @@ impl Webcam {
                     ])
                 });
             let img = DynamicImage::ImageRgb8(image.clone());
+            // let img = img.thumbnail(width / 10, height / 10);
             self.camera_texture = Texture::from_image::<&App>(app, &img);
         }
         //face stuff

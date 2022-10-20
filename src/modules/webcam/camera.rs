@@ -12,9 +12,7 @@ pub struct Camera {
 }
 impl Camera {
     pub fn new(index: usize) -> Camera {
-        let mut cam =
-            videoio::VideoCapture::new(index as i32, videoio::CAP_ANY)
-                .unwrap();
+        let mut cam = videoio::VideoCapture::new(index as i32, 4).unwrap();
         videoio::VideoCapture::is_opened(&cam)
             .expect("Open camera [FAILED]");
 
