@@ -11,27 +11,20 @@ use opencv::{core::*, imgproc::*, prelude::*};
 use opencv::videoio::*;
 use opencv::{highgui::*, prelude::*, videoio};
 
-mod movenet;
-use movenet::*;
-
 mod camera;
 use camera::*;
 
 pub struct Webcam {
-    movenet: Movenet,
     cam: Camera,
 }
 impl Webcam {
     pub fn new(app: &App) -> Webcam {
         Webcam {
-            movenet: Movenet::new(),
             cam: Camera::new(app),
         }
     }
 
     pub fn update(&mut self, app: &App) {
-        self.movenet.update(self.cam.update().unwrap());
-
         self.cam.update();
         self.cam.update_texture(app);
 
@@ -60,7 +53,6 @@ impl Webcam {
 
     pub fn draw_keypoints(&self, draw: &Draw) {
         let img: &Mat = &self.cam.img;
-        let keypoints = self.movenet.data();
         // keypoints: [1, 17, 3]
         let base: f32;
         let pad_x: f32;
@@ -73,31 +65,6 @@ impl Webcam {
             base = img.cols() as f32;
             pad_x = 0.0;
             pad_y = (img.cols() - img.rows()) as f32 / 2.0;
-        }
-
-        for index in 0..17 {
-            let y_ratio = keypoints[index * 3];
-            let x_ratio = keypoints[index * 3 + 1];
-            let confidence = keypoints[index * 3 + 2];
-            if confidence > 0.25 {
-                let xy = vec2(
-                    (x_ratio * base) - pad_x,
-                    (y_ratio * base) - pad_y,
-                );
-
-                draw.ellipse().xy(xy).radius(5.0).color(WHITE);
-
-                // circle(
-                //     img,
-
-                //     0,
-                //     Scalar::new(0.0, 255.0, 0.0, 0.0),
-                //     5,
-                //     LINE_AA,
-                //     0,
-                // )
-                // .expect("Draw circle [FAILED]");
-            }
         }
 
         // if let Ok(faces) = self.faces.lock() {

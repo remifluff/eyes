@@ -109,7 +109,7 @@ pub struct Model {
     target: Vec2,
     walk_x: Walk,
     walk_y: Walk,
-    // webcam: Webcam,
+    webcam: Webcam,
 }
 const SCALE: f32 = 2.5;
 
@@ -172,7 +172,7 @@ fn model(app: &App) -> Model {
         target: vec2(0.0, 0.0),
         walk_x: Walk::new(43324),
         walk_y: Walk::new(621034),
-        // webcam: Webcam::new(app),
+        webcam: Webcam::new(app),
     }
 }
 
@@ -183,7 +183,7 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     let win = app.window_rect();
 
     // model.face_cam_rect
-    // model.webcam.update(app);
+    model.webcam.update(app);
 
     // if let Some(t) = model.vision.get_target() {
     //     model.target = t;
@@ -215,7 +215,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
     draw.background().color(BLACK);
     println!("port connected");
 
-    // model.webcam.draw_camera(&draw);
+    model.webcam.draw_camera(&draw);
     // model.webcam.draw_keypoints(&draw);
     // model.face_cam_rect;
 
