@@ -1,6 +1,3 @@
-use nannou::prelude::*;
-// #[derive(Debug, PartialEq)]
-
 pub struct Connection {
     port_name: String,
     port: Option<SerialPort>,

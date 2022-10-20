@@ -9,9 +9,12 @@ pub const CAMERA_WH: (u32, u32) = (320, 240);
 pub const WIDTH: f32 = 240.0 * 2.0;
 pub const HEIGHT: f32 = 360.0 * 1.0;
 
-pub const OSC_PORT: u16 = 8338;
 pub const SCALE: f32 = 2.5;
-pub const SHOWDEBUG: bool = true;
+
+pub const SHOWDEBUG: bool = false;
+pub const PRINT_AVALIBLE_PORTS: bool = false;
+
+pub const PRINT_PORT_STATUS: bool = false;
 
 pub const SCRAENS: [ScraenDim; 4] = [
     ScraenDim {

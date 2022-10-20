@@ -5,13 +5,14 @@ use nannou::{app, App};
 
 use nannou_wgpu::Texture;
 use opencv::core::{flip, Vec3b};
-use opencv::{core::*, imgproc::*, prelude::*};
+use opencv::{
+    core::*,
+    imgproc::{self, *},
+    prelude::*,
+};
 
-use opencv::videoio::*;
-use opencv::{highgui::*, prelude::*, videoio};
-
-use super::Result;
-use super::WebcamError;
+use opencv::{highgui::*, prelude::*, videoio, Result};
+use opencv::{videoio::*, Error};
 
 pub struct Camera {
     pub cam: VideoCapture,
@@ -22,9 +23,6 @@ pub struct Camera {
 }
 impl Camera {
     pub fn new(app: &App) -> Camera {
-        // Resize input
-
-        // open camera
         let mut cam =
             videoio::VideoCapture::new(0, videoio::CAP_ANY).unwrap(); // 0 is the default camera
 
@@ -53,14 +51,38 @@ impl Camera {
             data: None,
         }
     }
-    pub fn update(&mut self) -> Result<Vec<u8>> {
+
+    pub fn face_detect_frame(&self) -> Result<Mat> {
+        let mut gray = Mat::default();
+        imgproc::cvt_color(
+            &self.img,
+            &mut gray,
+            imgproc::COLOR_BGR2GRAY,
+            0,
+        )?;
+        let mut reduced = Mat::default();
+        imgproc::resize(
+            &gray,
+            &mut reduced,
+            Size {
+                width: 0,
+                height: 0,
+            },
+            0.25f64,
+            0.25f64,
+            imgproc::INTER_LINEAR,
+        )?;
+
+        Ok(reduced)
+    }
+    pub fn update(&mut self) -> Result<()> {
         let mut frame = Mat::default();
 
         self.cam
             .read(&mut frame)
             .expect("VideoCapture: read [FAILED]");
 
-        if frame.size().unwrap().width > 0 {
+        if frame.size()?.width > 0 {
             // flip the image horizontally
 
             flip(&frame, &mut self.img, 1).expect("flip [FAILED]");
@@ -71,17 +93,14 @@ impl Camera {
             let vec_2d: Vec<Vec<opencv::core::Vec3b>> =
                 resized_img.to_vec_2d().unwrap();
 
-            let vec_1d: Vec<u8> = vec_2d
-                .iter()
-                .flat_map(|v| v.iter().flat_map(|w| w.as_slice()))
-                .cloned()
-                .collect();
-
             self.data = Some(frame.to_vec_2d().unwrap());
 
-            Ok(vec_1d)
+            Ok(())
         } else {
-            Err(WebcamError)
+            Err(Error {
+                code: 0,
+                message: "".to_owned(),
+            })
         }
     }
 

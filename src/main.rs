@@ -1,38 +1,11 @@
 #![allow(dead_code)]
 use nannou::prelude::*;
 
-pub mod connection;
-
-use crate::connection::Connection;
-
-mod scraen;
-use scraen::Scraen;
-
-mod webcam;
-use webcam::Webcam;
-
-mod timer;
-use timer::Timer;
-
-mod walk;
-use walk::Walk;
-
 mod settings;
 use settings::*;
 
-pub struct ScraenDim {
-    rez: u32,
-    xy: (f32, f32),
-    wh: (f32, f32),
-}
-
-pub struct Settings {
-    min_radius: f32,
-    max_radius: f32,
-    circle_count: usize,
-}
-
-pub use serial2::SerialPort;
+mod modules;
+use modules::*;
 
 fn main() {
     nannou::app(model).update(update).run();
@@ -72,28 +45,12 @@ fn model(app: &App) -> Model {
         screen.push(Scraen::new(app, scraen_dim, face_cam_rect));
     }
 
-    let mut port = Connection::new(PORT_NAME, false);
+    let mut port = Connection::new(PORT_NAME, PRINT_PORT_STATUS);
     port.open_port();
-    Connection::print_avaliable_ports();
 
-    // let cameras = query_devices(CaptureAPIBackend::Auto).unwrap();
-    // cameras.iter().for_each(|cam| println!("{:?}", cam));
-
-    // println!("{:#?}", (query_devices(CaptureAPIBackend::Auto)));
-
-    let write_timer = Timer::start_new(app.time, 0.0001);
-
-    let vision_timer = Timer::start_new(app.time, 0.1);
-
-    let rez: (u32, u32) = (12, 12);
-
-    // let mut vision = Vision::new(
-    //     app,
-    //     CAMERA_WH,
-    //     [(0, face_cam_rect), (2, street_cam_rect)],
-    // );
-
-    // vision.update_camera(app, face_cam_rect);
+    if PRINT_AVALIBLE_PORTS {
+        Connection::print_avaliable_ports();
+    }
 
     Model {
         scraens: screen,
@@ -109,8 +66,6 @@ fn model(app: &App) -> Model {
 }
 
 fn update(app: &App, model: &mut Model, _update: Update) {
-    Connection::print_avaliable_ports();
-
     let time = app.time;
     let win = app.window_rect();
 
@@ -145,7 +100,6 @@ fn update(app: &App, model: &mut Model, _update: Update) {
 fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().color(BLACK);
-    println!("port connected");
 
     model.webcam.draw_camera(&draw);
     // model.webcam.draw_keypoints(&draw);
@@ -159,8 +113,6 @@ fn view(app: &App, model: &Model, frame: Frame) {
 
     let target2 = app.mouse.position();
     // let target = model.vision.biggest_face.xy();
-
-    use chrono;
 
     fn main() {
         println!("{:?}", chrono::offset::Local::now());
