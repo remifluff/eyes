@@ -15,33 +15,31 @@ pub struct Model {
 
     port: Connection,
 
-    face_cam_rect: Rect,
-    street_cam_rect: Rect,
+    left_cam: Rect,
+    right_cam: Rect,
     target: Vec2,
     walk_x: Walk,
     walk_y: Walk,
-    webcam: Webcam,
+    webcam: Vec<Webcam>,
+    ping_pong: bool,
 }
 
 fn model(app: &App) -> Model {
     let window_id = app
         .new_window()
-        .size((WIDTH * SCALE) as u32, (HEIGHT * SCALE) as u32)
+        .size(WIN_W, WIN_H)
         .view(view)
         .build()
         .unwrap();
     let window = app.window(window_id).unwrap();
 
     let win_rect = window.rect();
-
-    let face_cam_rect =
-        Rect::from_corners(win_rect.top_left(), win_rect.mid_bottom());
-    let street_cam_rect =
-        Rect::from_corners(win_rect.mid_top(), win_rect.bottom_right());
+    let left_cam = win_rect.left_half();
+    let right_cam = win_rect.left_half();
 
     let mut screen = Vec::new();
     for scraen_dim in SCRAENS {
-        screen.push(Scraen::new(app, scraen_dim, face_cam_rect));
+        screen.push(Scraen::new(app, scraen_dim, left_cam));
     }
 
     let mut port = Connection::new(PORT_NAME, PRINT_PORT_STATUS);
@@ -55,12 +53,31 @@ fn model(app: &App) -> Model {
         scraens: screen,
         // vision,
         port,
-        face_cam_rect,
-        street_cam_rect,
+        left_cam,
+        right_cam,
         target: vec2(0.0, 0.0),
         walk_x: Walk::new(43324),
         walk_y: Walk::new(621034),
-        webcam: Webcam::new(app),
+        webcam: vec![
+            Webcam::new(
+                app,
+                2,
+                window.rect().left_half(),
+                CAM_W,
+                CAM_H,
+                CAM_ORIENTATION,
+            ),
+            Webcam::new(
+                app,
+                0,
+                window.rect().right_half(),
+                CAM_W,
+                CAM_H,
+                CAM_ORIENTATION,
+            ),
+            // Webcam::new(app, 2, window.rect().right_half()),
+        ],
+        ping_pong: true,
     }
 }
 
@@ -68,16 +85,25 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     let time = app.time;
     let win = app.window_rect();
 
-    // model.face_cam_rect
-    model.webcam.update(app);
+    if model.ping_pong {
+        model.webcam[0].update(app);
+    } else {
+        model.webcam[1].update(app);
+    }
+    model.ping_pong = !model.ping_pong;
+
+    // // model.face_cam_rect
+    // for webcam in &mut model.webcam {
+    //     webcam.update(app);
+    // }
 
     // if let Some(t) = model.vision.get_target() {
     //     model.target = t;
     // };
 
     // model.target = app.mouse.position();
-    let walk = vec2(model.walk_x.val(), model.walk_y.val())
-        - model.face_cam_rect.xy();
+    let walk =
+        vec2(model.walk_x.val(), model.walk_y.val()) - model.left_cam.xy();
     model.target = walk;
 
     model.walk_x.update();
@@ -99,8 +125,9 @@ fn update(app: &App, model: &mut Model, _update: Update) {
 fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().color(BLACK);
-
-    model.webcam.draw(&draw);
+    for webcam in &model.webcam {
+        webcam.draw(&draw);
+    }
 
     // model.webcam.draw_keypoints(&draw);
     // model.face_cam_rect;
@@ -122,8 +149,8 @@ fn view(app: &App, model: &Model, frame: Frame) {
     let dt = chrono::offset::Local::now();
     dt.format("%Y-%m-%d %H:%M:%S");
     // font::collection_from_file( model/Futura.ttc)
-    let walk = vec2(model.walk_x.val(), model.walk_y.val())
-        - model.face_cam_rect.xy();
+    let walk =
+        vec2(model.walk_x.val(), model.walk_y.val()) - model.left_cam.xy();
 
     if SHOWDEBUG {
         draw.ellipse().xy(walk).radius(30.0).color(GREY);
@@ -137,4 +164,21 @@ fn view(app: &App, model: &Model, frame: Frame) {
     .w_h(800.0, 10.0)
     .x_y(0.0, -370.0);
     draw.to_frame(app, &frame).unwrap();
+}
+
+trait SidesExt {
+    fn left_half(&self) -> Rect {
+        Rect::from_w_h(0.0, 0.0)
+    }
+    fn right_half(&self) -> Rect {
+        Rect::from_w_h(0.0, 0.0)
+    }
+}
+impl SidesExt for Rect {
+    fn left_half(&self) -> Rect {
+        Rect::from_corners(self.top_left(), self.mid_bottom())
+    }
+    fn right_half(&self) -> Rect {
+        Rect::from_corners(self.mid_top(), self.bottom_right())
+    }
 }

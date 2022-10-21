@@ -6,13 +6,16 @@ use opencv::{
     types, Result,
 };
 
+use crate::settings::Orientation;
+
 pub struct Detector {
     face: CascadeClassifier,
-    pub faces: Vector<Rect_<i32>>,
+    pub faces: Vec<(f32, f32, f32, f32)>,
+    downscale_factor: f32,
 }
 
 impl Detector {
-    pub fn new() -> Detector {
+    pub fn new(downscale_factor: f32) -> Detector {
         let xml = find_file(
             "haarcascades/haarcascade_frontalface_alt.xml",
             true,
@@ -22,10 +25,15 @@ impl Detector {
 
         Detector {
             face: objdetect::CascadeClassifier::new(&xml).unwrap(),
-            faces: types::VectorOfRect::new(),
+            faces: Vec::new(),
+            downscale_factor,
         }
     }
-    pub fn update_faces(&mut self, img: &Mat) -> Result<()> {
+    pub fn update_faces(
+        &mut self,
+        img: &Mat,
+        orientation: &Orientation,
+    ) -> Result<()> {
         let mut gray = Mat::default();
         imgproc::cvt_color(&img, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
         let mut reduced = Mat::default();
@@ -36,28 +44,44 @@ impl Detector {
                 width: 0,
                 height: 0,
             },
-            0.25f64,
-            0.25f64,
+            self.downscale_factor as f64,
+            self.downscale_factor as f64,
             imgproc::INTER_LINEAR,
         )?;
 
-        self.faces = types::VectorOfRect::new();
+        let mut faces = types::VectorOfRect::new();
 
         self.face.detect_multi_scale(
             &reduced,
-            &mut self.faces,
+            &mut faces,
             1.1,
             2,
             objdetect::CASCADE_SCALE_IMAGE,
             Size {
-                width: 30,
-                height: 30,
+                width: 10,
+                height: 10,
             },
             Size {
                 width: 0,
                 height: 0,
             },
         )?;
+
+        self.faces = faces
+            .iter()
+            .map(|face| {
+                let w = face.width as f32 / self.downscale_factor;
+                let h = face.height as f32 / self.downscale_factor;
+                let x = face.x as f32 / self.downscale_factor;
+                let y = face.y as f32 / self.downscale_factor;
+
+                let (offset_x, offset_y): (f32, f32) = match orientation {
+                    Orientation::Portrait => (w, 0.0),
+                    Orientation::Landscape => (w / 2.0, h / 2.0),
+                };
+                (x + offset_x, y + offset_y, w, h)
+            })
+            .collect();
 
         Ok(())
     }

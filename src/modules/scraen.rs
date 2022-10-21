@@ -1,30 +1,14 @@
-use std::iter::Flatten;
-
-use crate::{Connection, Model, ScraenDim, SCRAEN_SCALE};
-use futures::io::Close;
-use image::{
-    imageops::FilterType, math, DynamicImage, GenericImageView, Pixel,
-};
-use nannou::{
-    ease,
-    geom::rect,
-    image::{ImageBuffer, Pixels},
-    lyon::math::Point,
-    prelude::*,
-    prelude::*,
-    rand::{seq::index, SeedableRng},
-};
-use randomwalk::generators::NormalGenerator;
-use wgpu::TextueSnapshot;
-
-use randomwalk::translators::{
-    ExponentialTranslator, LogNormalTranslator, UniformTranslator,
-};
+use image::{imageops::FilterType, DynamicImage, Pixel};
+use nannou::{ease, prelude::*};
 
 // normal distribution between 0 and 1
 
 pub mod fbo;
 use fbo::Fbo;
+
+use crate::settings::SCRAEN_SCALE;
+
+use super::ScraenDim;
 
 const UPSCALE_VAL: u32 = 3;
 
