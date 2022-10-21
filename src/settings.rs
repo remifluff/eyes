@@ -33,25 +33,25 @@ pub const SCRAENS: [ScraenDim; 4] = [
         rez: 4,
         xy: (366.0, -123.0),
         wh: (4.0, 4.0),
-        rotation: Rotate0,
+        rotation: Rotate90,
     },
     ScraenDim {
         rez: 16,
         xy: (-198.0, -212.0),
         wh: (16.0, 16.0),
-        rotation: Rotate0,
+        rotation: Rotate90,
     },
     ScraenDim {
         rez: 8,
         xy: (-238.0, 92.0),
         wh: (8.0, 8.0),
-        rotation: Rotate180,
+        rotation: Rotate270,
     },
     ScraenDim {
         rez: 12,
         xy: (153.0, 124.0),
         wh: (12.0, 12.0),
-        rotation: Rotate180,
+        rotation: Rotate270,
     },
 ];
 pub enum Orientation {

@@ -8,7 +8,7 @@ use fbo::Fbo;
 
 use crate::settings::SCRAEN_SCALE;
 
-use super::ScraenDim;
+use super::{Rotation, ScraenDim};
 
 const UPSCALE_VAL: u32 = 3;
 
@@ -16,6 +16,7 @@ pub struct Scraen {
     pub fbo: Fbo,
     fbo_resolution: (u32, u32),
     window_transform: Affine2,
+    rotation: Rotation,
 
     scraen_resolution: (u32, u32),
     scraen_texture: wgpu::Texture,
@@ -86,6 +87,7 @@ impl Scraen {
             target_pos: Vec2::splat(0.0),
             target_vel: Vec2::splat(0.0),
             target_acc: Vec2::splat(0.0),
+            rotation: params.rotation,
 
             blink: Blink::new(0.2, 0.1, 0.1, 100),
         }
@@ -165,13 +167,18 @@ impl Scraen {
 
     pub fn serial_packet(&self) -> Option<Vec<u8>> {
         if let Ok(image) = self.fbo.image_buffer.try_lock() {
-            let small_img = image
-                .resize_exact(
-                    self.scraen_resolution.0,
-                    self.scraen_resolution.1,
-                    FilterType::Triangle,
-                )
-                .rotate90();
+            let img = image.resize_exact(
+                self.scraen_resolution.0,
+                self.scraen_resolution.1,
+                FilterType::Triangle,
+            );
+
+            let small_img = match self.rotation {
+                Rotation::Rotate0 => img,
+                Rotation::Rotate90 => img.rotate90(),
+                Rotation::Rotate180 => img.rotate180(),
+                Rotation::Rotate270 => img.rotate270(),
+            };
 
             let mut itt = small_img
                 .clone()
