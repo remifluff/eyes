@@ -23,8 +23,8 @@ use walk::Walk;
 
 pub use serial2::SerialPort;
 
-const PORT_NAME: &str = "/dev/ttyprintk";
-// const PORT_NAME: &str = "/dev/ttyACM0";
+// const PORT_NAME: &str = "/dev/ttyprintk";
+const PORT_NAME: &str = "/dev/ttyACM0";
 
 const SCRAEN_SCALE: f32 = 10.0 * SCALE;
 
@@ -33,21 +33,25 @@ const SCRAENS: [ScraenDim; 4] = [
         rez: 4,
         xy: (466.0, -123.0),
         wh: (4.0, 4.0),
+        rotate: false,
     },
     ScraenDim {
         rez: 16,
         xy: (102.0, -212.0),
         wh: (16.0, 16.0),
+        rotate: false,
     },
     ScraenDim {
         rez: 8,
         xy: (38.0, 92.0),
         wh: (8.0, 8.0),
+        rotate: true,
     },
     ScraenDim {
         rez: 12,
         xy: (453.0, 124.0),
         wh: (12.0, 12.0),
+        rotate: true,
     },
 ];
 
@@ -57,6 +61,7 @@ pub struct ScraenDim {
     rez: u32,
     xy: (f32, f32),
     wh: (f32, f32),
+    rotate: bool,
 }
 
 pub struct Settings {
@@ -99,10 +104,8 @@ fn model(app: &App) -> Model {
 
     let win_rect = window.rect();
 
-    let face_cam_rect =
-        Rect::from_corners(win_rect.top_left(), win_rect.mid_bottom());
-    let street_cam_rect =
-        Rect::from_corners(win_rect.mid_top(), win_rect.bottom_right());
+    let face_cam_rect = Rect::from_corners(win_rect.top_left(), win_rect.mid_bottom());
+    let street_cam_rect = Rect::from_corners(win_rect.mid_top(), win_rect.bottom_right());
 
     let mut screen = Vec::new();
     for scraen_dim in SCRAENS {
@@ -113,11 +116,7 @@ fn model(app: &App) -> Model {
     port.open_port();
     Connection::print_avaliable_ports();
 
-    let mut vision = Vision::new(
-        app,
-        CAMERA_WH,
-        [(0, face_cam_rect), (2, street_cam_rect)],
-    );
+    let mut vision = Vision::new(app, CAMERA_WH, [(0, face_cam_rect), (2, street_cam_rect)]);
 
     vision.update_camera(app, face_cam_rect);
 
@@ -144,8 +143,7 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     };
 
     // model.target = app.mouse.position();
-    let walk = vec2(model.walk_x.val(), model.walk_y.val())
-        - model.face_cam_rect.xy();
+    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.face_cam_rect.xy();
     model.target = walk;
 
     model.walk_x.update();
@@ -177,9 +175,8 @@ fn view(app: &App, model: &Model, frame: Frame) {
         }
     }
 
-    // let target = model.vision.biggest_face.xy();
-    let walk = vec2(model.walk_x.val(), model.walk_y.val())
-        - model.face_cam_rect.xy();
+    let target = model.vision.biggest_face.xy();
+    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.face_cam_rect.xy();
     if SHOWDEBUG {
         draw.ellipse().xy(walk).radius(30.0).color(GREY);
     }

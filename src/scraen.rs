@@ -2,9 +2,7 @@ use std::iter::Flatten;
 
 use crate::{Connection, Model, ScraenDim, SCRAEN_SCALE};
 use futures::io::Close;
-use image::{
-    imageops::FilterType, math, DynamicImage, GenericImageView, Pixel,
-};
+use image::{imageops::FilterType, math, DynamicImage, GenericImageView, Pixel};
 use nannou::{
     ease,
     geom::rect,
@@ -17,9 +15,7 @@ use nannou::{
 use randomwalk::generators::NormalGenerator;
 use wgpu::TextueSnapshot;
 
-use randomwalk::translators::{
-    ExponentialTranslator, LogNormalTranslator, UniformTranslator,
-};
+use randomwalk::translators::{ExponentialTranslator, LogNormalTranslator, UniformTranslator};
 
 // normal distribution between 0 and 1
 
@@ -50,20 +46,17 @@ pub struct Scraen {
     webcam_rect: Rect,
     target_acc: Vec2,
     target_vel: Vec2,
+
+    rotate: bool,
 }
 
 impl Scraen {
     pub fn new(app: &App, params: ScraenDim, webcam_rect: Rect) -> Scraen {
         let scraen_resolution = (params.rez, params.rez);
-        let fbo_resolution =
-            (params.rez * UPSCALE_VAL, params.rez * UPSCALE_VAL);
+        let fbo_resolution = (params.rez * UPSCALE_VAL, params.rez * UPSCALE_VAL);
 
-        let fbo_rect = Rect::from_x_y_w_h(
-            0.0,
-            0.0,
-            fbo_resolution.0 as f32,
-            fbo_resolution.1 as f32,
-        );
+        let fbo_rect =
+            Rect::from_x_y_w_h(0.0, 0.0, fbo_resolution.0 as f32, fbo_resolution.1 as f32);
 
         let draw_rect = Rect::from_x_y_w_h(
             params.xy.0,
@@ -73,8 +66,7 @@ impl Scraen {
         );
         // let fbo_resolution = params.(w * 20, h * 20);
 
-        let frame_buffer =
-            Fbo::new(app, (fbo_resolution.0, fbo_resolution.1));
+        let frame_buffer = Fbo::new(app, (fbo_resolution.0, fbo_resolution.1));
         let img = &DynamicImage::new_rgb8(params.rez, params.rez);
         let texture = wgpu::Texture::from_image(app, img);
         let window_transform = Affine2::from_scale_angle_translation(
@@ -105,7 +97,8 @@ impl Scraen {
             target_vel: Vec2::splat(0.0),
             target_acc: Vec2::splat(0.0),
 
-            blink: Blink::new(0.2, 0.1, 0.1, 100),
+            blink: Blink::new(0.2, 0.1, 0.1, 400),
+            rotate: params.rotate,
         }
     }
 
@@ -115,7 +108,7 @@ impl Scraen {
         //smooth target eye motion with accselatation
         let new_target_vel = self.target_pos - target;
         self.target_acc = self.target_vel - new_target_vel;
-        self.target_pos = self.target_pos + self.target_acc * 0.8;
+        self.target_pos = self.target_pos + self.target_acc * 0.2;
         //turn target motion into rotation and distance from center
         let screen_center = self.draw_rect.xy();
         let dist = screen_center.distance(self.target_pos);
@@ -127,7 +120,7 @@ impl Scraen {
         self.eye_rt = vec2(radius, theta);
         self.eye_xy = vec2(radius * theta.cos(), radius * theta.sin());
     }
-    pub fn draw_eye1(&self) {
+    pub fn draw_eye2(&self) {
         let draw = &self.fbo.draw();
         draw.background().color(BLACK);
         let rect_height = self.eye_r * self.blink.val;
@@ -151,7 +144,7 @@ impl Scraen {
             .color(BLACK);
     }
 
-    pub fn draw_eye(&self) {
+    pub fn draw_eye1(&self) {
         // self.eye_xy = vec2(radius * theta.cos(), radius * theta.sin());
         let rad = self.eye_rt.x;
         let angle = self.eye_rt.y;
@@ -181,7 +174,7 @@ impl Scraen {
             .color(BLACK);
     }
 
-    pub fn draw_eye2(&self) {
+    pub fn draw_eye(&self) {
         let draw = &self.fbo.draw();
         draw.background().color(BLACK);
         let rect_height = self.eye_r * self.blink.val;
@@ -237,13 +230,16 @@ impl Scraen {
 
     pub fn serial_packet(&self) -> Option<Vec<u8>> {
         if let Ok(image) = self.fbo.image_buffer.try_lock() {
-            let small_img = image
-                .resize_exact(
-                    self.scraen_resolution.0,
-                    self.scraen_resolution.1,
-                    FilterType::Triangle,
-                )
-                .rotate90();
+            let mut small_img = image.resize_exact(
+                self.scraen_resolution.0,
+                self.scraen_resolution.1,
+                FilterType::Triangle,
+            );
+            if self.rotate {
+                small_img = small_img.rotate270();
+            } else {
+                small_img = small_img.rotate90();
+            }
 
             let mut itt = small_img
                 .clone()
@@ -251,9 +247,7 @@ impl Scraen {
                 .enumerate_rows()
                 .flat_map(|(i, row)| {
                     let mut mapped_row: Vec<u8> = row
-                        .map(|(x, y, pix)| {
-                            clamp(pix.to_luma().channels()[0], 0u8, 200u8)
-                        })
+                        .map(|(x, y, pix)| clamp(pix.to_luma().channels()[0], 0u8, 200u8))
                         .collect();
                     if i % 2 == 0 {
                         mapped_row.reverse();
@@ -288,12 +282,7 @@ struct Blink {
 }
 
 impl Blink {
-    fn new(
-        shutting_time: f64,
-        closed_time: f64,
-        opening_time: f64,
-        chance: u32,
-    ) -> Blink {
+    fn new(shutting_time: f64, closed_time: f64, opening_time: f64, chance: u32) -> Blink {
         Blink {
             state: State::Dorment,
             shutting_time,
@@ -309,8 +298,7 @@ impl Blink {
             State::Closing(start_time) => {
                 let t = time - start_time;
                 if t < self.shutting_time {
-                    ease::sine::ease_in(t, 0.0, 1.0, self.shutting_time)
-                        as f32
+                    ease::sine::ease_in(t, 0.0, 1.0, self.shutting_time) as f32
                 } else {
                     self.state = State::Closed(time);
                     1.0
@@ -328,12 +316,7 @@ impl Blink {
             State::Opening(start_time) => {
                 let t = time - start_time;
                 if t < self.opening_time {
-                    (1.0 - ease::sine::ease_out(
-                        t,
-                        0.0,
-                        1.0,
-                        self.opening_time,
-                    ) as f32)
+                    (1.0 - ease::sine::ease_out(t, 0.0, 1.0, self.opening_time) as f32)
                 } else {
                     self.state = State::Dorment;
                     0.0
