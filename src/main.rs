@@ -17,11 +17,15 @@ pub struct Model {
 
     left_cam: Rect,
     right_cam: Rect,
+
+    win_rect: Rect,
     target: Vec2,
     walk_x: Walk,
     walk_y: Walk,
     webcam: Vec<Webcam>,
     ping_pong: bool,
+
+    target_index: usize,
 }
 
 fn model(app: &App) -> Model {
@@ -39,7 +43,7 @@ fn model(app: &App) -> Model {
 
     let mut screen = Vec::new();
     for scraen_dim in SCRAENS {
-        screen.push(Scraen::new(app, scraen_dim, left_cam));
+        screen.push(Scraen::new(app, scraen_dim, win_rect));
     }
 
     let mut port = Connection::new(PORT_NAME, PRINT_PORT_STATUS);
@@ -55,13 +59,14 @@ fn model(app: &App) -> Model {
         port,
         left_cam,
         right_cam,
+        win_rect,
         target: vec2(0.0, 0.0),
         walk_x: Walk::new(43324),
         walk_y: Walk::new(621034),
         webcam: vec![
             Webcam::new(
                 app,
-                2,
+                LEFT_CAM,
                 window.rect().left_half(),
                 CAM_W,
                 CAM_H,
@@ -69,7 +74,7 @@ fn model(app: &App) -> Model {
             ),
             Webcam::new(
                 app,
-                0,
+                RIGHT_CAM,
                 window.rect().right_half(),
                 CAM_W,
                 CAM_H,
@@ -78,6 +83,7 @@ fn model(app: &App) -> Model {
             // Webcam::new(app, 2, window.rect().right_half()),
         ],
         ping_pong: true,
+        target_index: 0,
     }
 }
 
@@ -97,19 +103,30 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     //     webcam.update(app);
     // }
 
-    // if let Some(t) = model.vision.get_target() {
-    //     model.target = t;
-    // };
-
     // model.target = app.mouse.position();
     let walk =
-        vec2(model.walk_x.val(), model.walk_y.val()) - model.left_cam.xy();
-    model.target = walk;
+        vec2(model.walk_x.val(), model.walk_y.val()) - model.win_rect.xy();
 
     model.walk_x.update();
     model.walk_y.update();
 
     model.port.write(vec![255]);
+
+    if random_range(0, 600) < 1 {
+        if model.target_index == 0 {
+            model.target_index = 1;
+        } else {
+            model.target_index = 0;
+        }
+    }
+
+    if let Some(t) = model.webcam[model.target_index].target {
+        model.target = t.xy();
+        println!("{:?}", t.xy());
+    } else {
+        model.target = walk;
+    }
+
     for screen in &mut model.scraens {
         screen.draw_eye();
         screen.render_texture(&app);
@@ -141,13 +158,13 @@ fn view(app: &App, model: &Model, frame: Frame) {
     let target2 = app.mouse.position();
     // let target = model.vision.biggest_face.xy();
 
-    fn main() {
-        println!("{:?}", chrono::offset::Local::now());
-        println!("{:?}", chrono::offset::Utc::now());
-    }
+    // fn main() {
+    //     println!("{:?}", chrono::offset::Local::now());
+    //     println!("{:?}", chrono::offset::Utc::now());
+    // }
 
-    let dt = chrono::offset::Local::now();
-    dt.format("%Y-%m-%d %H:%M:%S");
+    // let dt = chrono::offset::Local::now();
+    // dt.format("%Y-%m-%d %H:%M:%S");
     // font::collection_from_file( model/Futura.ttc)
     let walk =
         vec2(model.walk_x.val(), model.walk_y.val()) - model.left_cam.xy();
@@ -156,13 +173,13 @@ fn view(app: &App, model: &Model, frame: Frame) {
         draw.ellipse().xy(walk).radius(30.0).color(GREY);
     }
 
-    draw.text(
-        format!("local time: {}", dt.format("%H:%M:%S:%f")).as_str(),
-    )
-    .color(WHITE)
-    .font_size(24)
-    .w_h(800.0, 10.0)
-    .x_y(0.0, -370.0);
+    // draw.text(
+    //     format!("local time: {}", dt.format("%H:%M:%S:%f")).as_str(),
+    // )
+    // .color(WHITE)
+    // .font_size(24)
+    // .w_h(800.0, 10.0)
+    // .x_y(0.0, -370.0);
     draw.to_frame(app, &frame).unwrap();
 }
 

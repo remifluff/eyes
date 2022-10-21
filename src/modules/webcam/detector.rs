@@ -12,6 +12,7 @@ pub struct Detector {
     face: CascadeClassifier,
     pub faces: Vec<(f32, f32, f32, f32)>,
     downscale_factor: f32,
+    pub biggest_rect: Option<((f32, f32, f32, f32))>,
 }
 
 impl Detector {
@@ -27,6 +28,7 @@ impl Detector {
             face: objdetect::CascadeClassifier::new(&xml).unwrap(),
             faces: Vec::new(),
             downscale_factor,
+            biggest_rect: None,
         }
     }
     pub fn update_faces(
@@ -82,6 +84,27 @@ impl Detector {
                 (x + offset_x, y + offset_y, w, h)
             })
             .collect();
+
+        // pub fn get_target(&mut self) -> Option<Point2> {
+        //     if let Ok(faces) = self.faces.lock() {
+        let biggest_rect = self
+            .faces
+            .iter()
+            .min_by(|a, b| a.3.partial_cmp(&b.3).unwrap());
+
+        self.biggest_rect = if let Some(x) = biggest_rect {
+            Some(*x)
+        } else {
+            None
+        };
+        //     }
+        //     let t = self.webcams[0].cam_to_screen;
+
+        //     // .xy(get_t_xy(*face, t))
+        //     // .radius(get_t_wh(*face, t).x)
+
+        //     Some(t.transform_point2(self.biggest_face.xy()))
+        // }
 
         Ok(())
     }

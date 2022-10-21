@@ -22,6 +22,8 @@ pub struct Webcam {
     draw_transformation: Affine2,
     orientation: Orientation,
     cam_rect: Rect,
+
+    pub target: Option<Rect>,
 }
 impl Webcam {
     pub fn new(
@@ -60,6 +62,7 @@ impl Webcam {
 
             orientation,
             cam_rect,
+            target: None,
         }
     }
     pub fn update(&mut self, app: &App) {
@@ -94,6 +97,23 @@ impl Webcam {
             &self.cam.get_img(&self.orientation),
             &self.orientation,
         );
+
+        if let Some(face) = self.detector.biggest_rect {
+            let x = face.0;
+            let y = face.1;
+            let w = face.2;
+            let h = face.3;
+            let offset_x = self.cam.w() as f32 / 2.0;
+            let offset_y = self.cam.h() as f32 / 2.0;
+
+            // if h > 1.0 {
+            self.target = Some(
+                Rect::from_x_y_w_h(offset_x - x, offset_y - y, w, h)
+                    .transform(self.draw_transformation),
+            );
+        } else {
+            self.target = None;
+        }
     }
 
     pub fn draw(&self, draw: &Draw) {
@@ -104,6 +124,7 @@ impl Webcam {
             .wh(draw_rect.wh())
             .xy(draw_rect.xy());
         //draw faces
+
         for face in &self.detector.faces {
             let x = face.0;
             let y = face.1;
@@ -147,6 +168,7 @@ fn get_transformation(from_rect: Rect, to_rect: Rect) -> Affine2 {
         position_change,
     )
 }
+
 trait TranformExt {
     fn transform(&self, t: Affine2) -> Rect {
         Rect::from_w_h(0.0, 0.0)
