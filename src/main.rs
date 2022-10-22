@@ -91,12 +91,12 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     let time = app.time;
     let win = app.window_rect();
 
-    if model.ping_pong {
-        model.webcam[0].update(app);
-    } else {
-        model.webcam[1].update(app);
-    }
-    model.ping_pong = !model.ping_pong;
+    // if model.ping_pong {
+    //     model.webcam[0].update(app);
+    // } else {
+    //     model.webcam[1].update(app);
+    // }
+    // model.ping_pong = !model.ping_pong;
 
     // // model.face_cam_rect
     // for webcam in &mut model.webcam {
@@ -104,8 +104,7 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     // }
 
     // model.target = app.mouse.position();
-    let walk =
-        vec2(model.walk_x.val(), model.walk_y.val()) - model.win_rect.xy();
+    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.win_rect.xy();
 
     model.walk_x.update();
     model.walk_y.update();
@@ -120,12 +119,12 @@ fn update(app: &App, model: &mut Model, _update: Update) {
         }
     }
 
-    if let Some(t) = model.webcam[model.target_index].target {
-        model.target = t.xy();
-        println!("{:?}", t.xy());
-    } else {
-        model.target = walk;
-    }
+    // if let Some(t) = model.webcam[model.target_index].target {
+    //     model.target = t.xy();
+    //     println!("{:?}", t.xy());
+    // } else {
+    // }
+    model.target = walk;
 
     for screen in &mut model.scraens {
         screen.draw_eye();
@@ -142,9 +141,9 @@ fn update(app: &App, model: &mut Model, _update: Update) {
 fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
     draw.background().color(BLACK);
-    for webcam in &model.webcam {
-        webcam.draw(&draw);
-    }
+    // for webcam in &model.webcam {
+    //     webcam.draw(&draw);
+    // }
 
     // model.webcam.draw_keypoints(&draw);
     // model.face_cam_rect;
@@ -166,8 +165,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
     // let dt = chrono::offset::Local::now();
     // dt.format("%Y-%m-%d %H:%M:%S");
     // font::collection_from_file( model/Futura.ttc)
-    let walk =
-        vec2(model.walk_x.val(), model.walk_y.val()) - model.left_cam.xy();
+    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.left_cam.xy();
 
     if SHOWDEBUG {
         draw.ellipse().xy(walk).radius(30.0).color(GREY);
