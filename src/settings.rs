@@ -15,8 +15,8 @@ pub const DOWNSCALE_FACTOR: f32 = 0.5;
 pub const SCALE: f32 = 2.5;
 pub const SCRAEN_SCALE: f32 = 10.0 * SCALE;
 
-pub const WINDOW_ASPECT_RATIO: f32 = 480.0 / 360.0;
-pub const WIN_H: u32 = 800;
+pub const WINDOW_ASPECT_RATIO: f32 = 480.0 / 320.0;
+pub const WIN_H: u32 = 600;
 pub const WIN_W: u32 = (WIN_H as f32 * WINDOW_ASPECT_RATIO) as u32;
 
 pub const SHOW_DEBUG: bool = true;
@@ -24,6 +24,13 @@ pub const SHOW_WEBCAMS: bool = true;
 
 pub const PRINT_AVALIBLE_PORTS: bool = false;
 pub const PRINT_PORT_STATUS: bool = false;
+
+pub const BLINK_CHANCE_PER_FRAME: f32 = 1.0 / 100.0;
+pub const EYE_ACCELERATION: f32 = 0.1;
+
+pub const BLINK_SECS_TO_CLOSE: f64 = 0.1;
+pub const BLINK_SECS_STAY_CLOSE: f64 = 0.2;
+pub const BLINK_SECS_TO_OPEN: f64 = 0.2;
 
 pub const WEBCAM_SETTINGS: [WebcamSettings; 2] = [
     WebcamSettings {

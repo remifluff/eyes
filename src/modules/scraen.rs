@@ -6,7 +6,7 @@ use nannou::{ease, prelude::*};
 pub mod fbo;
 use fbo::Fbo;
 
-use crate::settings::SCRAEN_SCALE;
+use crate::settings::*;
 
 use super::{Rotation, ScraenDim};
 
@@ -83,7 +83,12 @@ impl Scraen {
             target_acc: Vec2::splat(0.0),
             rotation: params.rotation,
 
-            blink: Blink::new(0.2, 0.1, 0.1, 400),
+            blink: Blink::new(
+                BLINK_SECS_TO_CLOSE,
+                BLINK_SECS_STAY_CLOSE,
+                BLINK_SECS_TO_OPEN,
+                BLINK_CHANCE_PER_FRAME,
+            ),
         }
     }
 
@@ -93,7 +98,7 @@ impl Scraen {
         //smooth target eye motion with accselatation
         let new_target_vel = self.target_pos - target;
         self.target_acc = self.target_vel - new_target_vel;
-        self.target_pos = self.target_pos + self.target_acc * 0.1;
+        self.target_pos = self.target_pos + self.target_acc * EYE_ACCELERATION;
         //turn target motion into rotation and distance from center
         let screen_center = self.draw_rect.xy();
         let dist = screen_center.distance(self.target_pos);
@@ -215,13 +220,13 @@ struct Blink {
 }
 
 impl Blink {
-    fn new(shutting_time: f64, closed_time: f64, opening_time: f64, chance: u32) -> Blink {
+    fn new(shutting_time: f64, closed_time: f64, opening_time: f64, chance: f32) -> Blink {
         Blink {
             state: State::Dorment,
             shutting_time,
             closed_time,
             opening_time,
-            chance,
+            chance: (1.0 / chance) as u32,
             val: 0.0,
         }
     }

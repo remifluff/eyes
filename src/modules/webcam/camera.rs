@@ -26,6 +26,7 @@ impl Camera {
     pub fn new(index: usize, width: u32, height: u32) -> Camera {
         let camera_params = (index, width, height);
         let cam = Self::open_camera(camera_params);
+
         Camera {
             camera_params,
             cam,
