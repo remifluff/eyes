@@ -22,9 +22,14 @@ pub struct Webcam {
     draw_transformation: Affine2,
     orientation: Orientation,
     cam_rect: Rect,
+    index: usize,
+
+    cam_w: u32,
+    cam_h: u32,
 
     pub target: Option<Rect>,
 }
+
 impl Webcam {
     pub fn new(
         app: &App,
@@ -37,18 +42,11 @@ impl Webcam {
         let cam = Camera::new(index, cam_w, cam_h);
 
         let cam_rect = match orientation {
-            Orientation::Portrait => {
-                Rect::from_x_y_w_h(0.0, 0.0, cam_h as f32, cam_w as f32)
-            }
-            Orientation::Landscape => {
-                Rect::from_x_y_w_h(0.0, 0.0, cam_w as f32, cam_h as f32)
-            }
+            Orientation::Portrait => Rect::from_x_y_w_h(0.0, 0.0, cam_h as f32, cam_w as f32),
+            Orientation::Landscape => Rect::from_x_y_w_h(0.0, 0.0, cam_w as f32, cam_h as f32),
         };
 
-        let empty = &DynamicImage::new_rgb8(
-            cam_rect.w() as u32,
-            cam_rect.h() as u32,
-        );
+        let empty = &DynamicImage::new_rgb8(cam_rect.w() as u32, cam_rect.h() as u32);
 
         get_transformation(cam_rect, draw_rect);
 
@@ -59,30 +57,27 @@ impl Webcam {
             detector: Detector::new(DOWNSCALE_FACTOR),
             downscale_factor: DOWNSCALE_FACTOR,
             draw_transformation: get_transformation(cam_rect, draw_rect),
-
+            index,
             orientation,
             cam_rect,
             target: None,
+            cam_w,
+            cam_h,
         }
     }
     pub fn update(&mut self, app: &App) {
-        self.cam.get_frame();
+        self.cam.get_frame(app.time);
 
         //render camera
 
         if let Some(data) = &self.cam.data {
-            let width = self.cam.w();
-            let height = self.cam.h();
+            let width = self.cam_w;
+            let height = self.cam_h;
 
-            let image =
-                image::ImageBuffer::from_fn(width, height, |x, y| {
-                    let pixel = data[y as usize][(width - x - 1) as usize];
-                    image::Rgb([
-                        pixel[2] as u8,
-                        pixel[1] as u8,
-                        pixel[0] as u8,
-                    ])
-                });
+            let image = image::ImageBuffer::from_fn(width, height, |x, y| {
+                let pixel = data[y as usize][(width - x - 1) as usize];
+                image::Rgb([pixel[2] as u8, pixel[1] as u8, pixel[0] as u8])
+            });
 
             let img = match &self.orientation {
                 Portrait => ImageRgb8(image.clone()).rotate90(),
@@ -93,18 +88,16 @@ impl Webcam {
             self.camera_texture = Texture::from_image::<&App>(app, &img);
         }
         //face stuff
-        self.detector.update_faces(
-            &self.cam.get_img(&self.orientation),
-            &self.orientation,
-        );
+        self.detector
+            .update_faces(&self.cam.get_img(&self.orientation), &self.orientation);
 
         if let Some(face) = self.detector.biggest_rect {
             let x = face.0;
             let y = face.1;
             let w = face.2;
             let h = face.3;
-            let offset_x = self.cam.w() as f32 / 2.0;
-            let offset_y = self.cam.h() as f32 / 2.0;
+            let offset_x = self.cam_w as f32 / 2.0;
+            let offset_y = self.cam_h as f32 / 2.0;
 
             // if h > 1.0 {
             self.target = Some(
@@ -125,6 +118,16 @@ impl Webcam {
             .xy(draw_rect.xy());
         //draw faces
 
+        draw.text(
+            format!(
+                "webcam {} drawn  : {:?}",
+                &self.index, &self.cam.frame_status
+            )
+            .as_str(),
+        )
+        .xy(draw_rect.xy())
+        .color(WHITE);
+
         for face in &self.detector.faces {
             let x = face.0;
             let y = face.1;
@@ -134,13 +137,12 @@ impl Webcam {
             // face.x as f32 * 4.0 - offset_x,
             // face.y as f32 * 4.0 - offset_y,
 
-            let offset_x = self.cam.w() as f32 / 2.0;
-            let offset_y = self.cam.h() as f32 / 2.0;
+            let offset_x = self.cam_w as f32 / 2.0;
+            let offset_y = self.cam_h as f32 / 2.0;
 
             //convert face to rect
-            let face =
-                Rect::from_x_y_w_h(offset_x - x, offset_y - y, w, h)
-                    .transform(self.draw_transformation);
+            let face = Rect::from_x_y_w_h(offset_x - x, offset_y - y, w, h)
+                .transform(self.draw_transformation);
 
             //draw face
             draw.rect().color(WHITE).xy(face.xy()).wh(face.wh());
@@ -148,12 +150,7 @@ impl Webcam {
     }
 
     pub fn webcam_rect(&self) -> Rect {
-        Rect::from_x_y_w_h(
-            0.0,
-            0.0,
-            self.cam.w() as f32,
-            self.cam.h() as f32,
-        )
+        Rect::from_x_y_w_h(0.0, 0.0, self.cam_w as f32, self.cam_h as f32)
     }
 }
 
@@ -162,11 +159,7 @@ fn get_transformation(from_rect: Rect, to_rect: Rect) -> Affine2 {
     let position_change = to_rect.xy() - from_rect.xy();
     // + (-from_rect.wh() / 2.0) * (to_rect.wh() / from_rect.wh());
 
-    Affine2::from_scale_angle_translation(
-        scale_change,
-        0.0,
-        position_change,
-    )
+    Affine2::from_scale_angle_translation(scale_change, 0.0, position_change)
 }
 
 trait TranformExt {

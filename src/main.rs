@@ -10,6 +10,7 @@ use modules::*;
 fn main() {
     nannou::app(model).update(update).run();
 }
+
 pub struct Model {
     scraens: Vec<Scraen>,
 
@@ -29,6 +30,7 @@ pub struct Model {
 }
 
 fn model(app: &App) -> Model {
+    // let x = cycle(0, 1);
     let window_id = app
         .new_window()
         .size(WIN_W, WIN_H)
@@ -66,7 +68,7 @@ fn model(app: &App) -> Model {
         webcam: vec![
             Webcam::new(
                 app,
-                LEFT_CAM,
+                LEFT_CAM_INDEX,
                 window.rect().left_half(),
                 CAM_W,
                 CAM_H,
@@ -74,13 +76,12 @@ fn model(app: &App) -> Model {
             ),
             Webcam::new(
                 app,
-                RIGHT_CAM,
+                RIGHT_CAM_INDEX,
                 window.rect().right_half(),
                 CAM_W,
                 CAM_H,
                 CAM_ORIENTATION,
             ),
-            // Webcam::new(app, 2, window.rect().right_half()),
         ],
         ping_pong: true,
         target_index: 0,
@@ -91,41 +92,35 @@ fn update(app: &App, model: &mut Model, _update: Update) {
     let time = app.time;
     let win = app.window_rect();
 
-    // if model.ping_pong {
-    //     model.webcam[0].update(app);
-    // } else {
-    //     model.webcam[1].update(app);
-    // }
-    // model.ping_pong = !model.ping_pong;
+    if SHOW_WEBCAMS {
+        //randomly switch betweeen targets
+        if random_range(0, 600) < 1 {
+            if model.target_index == 0 {
+                model.target_index = 1;
+            } else {
+                model.target_index = 0;
+            }
+        }
 
-    // // model.face_cam_rect
-    // for webcam in &mut model.webcam {
-    //     webcam.update(app);
-    // }
-
-    // model.target = app.mouse.position();
-    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.win_rect.xy();
+        //alternative update
+        if model.ping_pong {
+            model.webcam[0].update(app);
+        } else {
+            model.webcam[1].update(app);
+        }
+        model.ping_pong = !model.ping_pong;
+    }
 
     model.walk_x.update();
     model.walk_y.update();
 
+    model.target = match model.webcam[model.target_index].target {
+        Some(target) => target.xy(),
+        None => vec2(model.walk_x.val(), model.walk_y.val()) - model.win_rect.xy(),
+    };
+
+    // render screens and write to serial port
     model.port.write(vec![255]);
-
-    if random_range(0, 600) < 1 {
-        if model.target_index == 0 {
-            model.target_index = 1;
-        } else {
-            model.target_index = 0;
-        }
-    }
-
-    // if let Some(t) = model.webcam[model.target_index].target {
-    //     model.target = t.xy();
-    //     println!("{:?}", t.xy());
-    // } else {
-    // }
-    model.target = walk;
-
     for screen in &mut model.scraens {
         screen.draw_eye();
         screen.render_texture(&app);
@@ -140,44 +135,23 @@ fn update(app: &App, model: &mut Model, _update: Update) {
 
 fn view(app: &App, model: &Model, frame: Frame) {
     let draw = app.draw();
-    draw.background().color(BLACK);
-    // for webcam in &model.webcam {
-    //     webcam.draw(&draw);
-    // }
+    // draw.background().color(BLACK);
 
-    // model.webcam.draw_keypoints(&draw);
-    // model.face_cam_rect;
-
-    if SHOWDEBUG {
-        for screen in &model.scraens {
-            screen.draw_to_frame(&draw);
+    if SHOW_WEBCAMS {
+        for webcam in &model.webcam {
+            webcam.draw(&draw);
         }
     }
 
     let target2 = app.mouse.position();
-    // let target = model.vision.biggest_face.xy();
 
-    // fn main() {
-    //     println!("{:?}", chrono::offset::Local::now());
-    //     println!("{:?}", chrono::offset::Utc::now());
-    // }
-
-    // let dt = chrono::offset::Local::now();
-    // dt.format("%Y-%m-%d %H:%M:%S");
-    // font::collection_from_file( model/Futura.ttc)
-    let walk = vec2(model.walk_x.val(), model.walk_y.val()) - model.left_cam.xy();
-
-    if SHOWDEBUG {
-        draw.ellipse().xy(walk).radius(30.0).color(GREY);
+    if SHOW_DEBUG {
+        for screen in &model.scraens {
+            screen.draw_to_frame(&draw);
+        }
+        draw.ellipse().xy(model.target).radius(30.0).color(GREY);
     }
 
-    // draw.text(
-    //     format!("local time: {}", dt.format("%H:%M:%S:%f")).as_str(),
-    // )
-    // .color(WHITE)
-    // .font_size(24)
-    // .w_h(800.0, 10.0)
-    // .x_y(0.0, -370.0);
     draw.to_frame(app, &frame).unwrap();
 }
 
@@ -197,3 +171,20 @@ impl SidesExt for Rect {
         Rect::from_corners(self.mid_top(), self.bottom_right())
     }
 }
+
+// fn main() {
+//     println!("{:?}", chrono::offset::Local::now());
+//     println!("{:?}", chrono::offset::Utc::now());
+// }
+
+// let dt = chrono::offset::Local::now();
+// dt.format("%Y-%m-%d %H:%M:%S");
+// font::collection_from_file( model/Futura.ttc)
+
+// draw.text(
+//     format!("local time: {}", dt.format("%H:%M:%S:%f")).as_str(),
+// )
+// .color(WHITE)
+// .font_size(24)
+// .w_h(800.0, 10.0)
+// .x_y(0.0, -370.0);
