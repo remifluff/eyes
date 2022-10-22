@@ -1,8 +1,8 @@
 use crate::modules::Rotation::*;
 use crate::ScraenDim;
 
-pub const PORT_NAME: &str = "/dev/ttyprintk";
-// const PORT_NAME: &str = "/dev/ttyACM0";
+// pub const PORT_NAME: &str = "/dev/ttyprintk";
+pub const PORT_NAME: &str = "/dev/ttyACM0";
 
 pub const SCRAEN_SCALE: f32 = 10.0 * SCALE;
 
