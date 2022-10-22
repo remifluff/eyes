@@ -14,7 +14,9 @@ rustface = "0.1.7"
 anyhow = "1.0.64"
 time = { version = "0.3.1", features = ["macros"] }
 
-nokhwa = {version = "0.9.4", features = ["input-v4l", "output-threaded"]}
+# nokhwa = {version = "0.9.4", features = ["input-v4l", "output-threaded"]}
+
+nokhwa = {version = "0.9.4", features = ["input-opencv", "output-threaded"]}
 
 chrono = "0.4.1"
 randomwalk = "0.1.3"
